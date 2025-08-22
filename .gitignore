@@ -118,3 +118,7 @@ cassandra-data/
 kafka-data/
 zookeeper-data/
 zookeeper-logs/
+
+# Ignore specific Markdown files
+about.md
+knowledge.md
