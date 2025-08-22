@@ -1,0 +1,73 @@
+# Vehicle Telemetry System - Development Docker Compose
+# Lightweight development configuration with fast startup
+
+version: '3.8'
+
+services:
+  # Development Kafka (single node, minimal config)
+  zookeeper-dev:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper-dev
+    container_name: vts-zookeeper-dev
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - vts-dev-network
+
+  kafka-dev:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka-dev
+    container_name: vts-kafka-dev
+    depends_on:
+      - zookeeper-dev
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-dev:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-dev:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - vts-dev-network
+
+  # Development Cassandra (minimal resources)
+  cassandra-dev:
+    image: cassandra:4.0
+    hostname: cassandra-dev
+    container_name: vts-cassandra-dev
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: VTSDevCluster
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_RACK: rack1
+      CASSANDRA_ENDPOINT_SNITCH: SimpleSnitch
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 50M
+    networks:
+      - vts-dev-network
+
+  # Development Monitoring
+  kafka-ui-dev:
+    image: provectuslabs/kafka-ui:latest
+    container_name: vts-kafka-ui-dev
+    depends_on:
+      - kafka-dev
+    ports:
+      - "8083:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-dev:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper-dev:2181
+    networks:
+      - vts-dev-network
+
+networks:
+  vts-dev-network:
+    driver: bridge

@@ -1,0 +1,123 @@
+# Vehicle Telemetry System - Cassandra StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra
+spec:
+  serviceName: cassandra-service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      containers:
+        - name: cassandra
+          image: cassandra:4.0
+          ports:
+            - containerPort: 9042
+            - containerPort: 7000
+          env:
+            - name: CASSANDRA_SEEDS
+              value: "cassandra-0.cassandra-service,cassandra-1.cassandra-service,cassandra-2.cassandra-service"
+            - name: CASSANDRA_CLUSTER_NAME
+              value: "VehicleTelemetryCluster"
+            - name: CASSANDRA_DC
+              value: "datacenter1"
+            - name: CASSANDRA_RACK
+              value: "rack1"
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: "SimpleSnitch"
+            - name: MAX_HEAP_SIZE
+              value: "2G"
+            - name: HEAP_NEWSIZE
+              value: "200M"
+          resources:
+            requests:
+              memory: "3Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          volumeMounts:
+            - name: cassandra-data
+              mountPath: /var/lib/cassandra
+            - name: cassandra-config
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - "cqlsh -e 'describe keyspaces'"
+            initialDelaySeconds: 120
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - "cqlsh -e 'describe keyspaces'"
+            initialDelaySeconds: 60
+            periodSeconds: 15
+      volumes:
+        - name: cassandra-config
+          configMap:
+            name: vts-cassandra-init
+  volumeClaimTemplates:
+    - metadata:
+        name: cassandra-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-service
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra
+spec:
+  selector:
+    app: cassandra
+  ports:
+    - port: 9042
+      targetPort: 9042
+      protocol: TCP
+      name: cql
+    - port: 7000
+      targetPort: 7000
+      protocol: TCP
+      name: intra-node
+  clusterIP: None # Headless service for StatefulSet
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-external
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra
+spec:
+  selector:
+    app: cassandra
+  ports:
+    - port: 9042
+      targetPort: 9042
+      protocol: TCP
+  type: LoadBalancer # External access for management tools

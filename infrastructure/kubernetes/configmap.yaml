@@ -1,0 +1,62 @@
+# Vehicle Telemetry System - Configuration Maps
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vts-config
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: configuration
+data:
+  # Kafka Configuration
+  kafka.bootstrap.servers: "kafka-service:9092"
+  kafka.topic.telemetry: "vehicle-telemetry"
+  kafka.consumer.group.id: "telemetry-processing-group"
+
+  # Cassandra Configuration
+  cassandra.contact.points: "cassandra-service"
+  cassandra.port: "9042"
+  cassandra.keyspace: "vehicle_telemetry"
+  cassandra.datacenter: "datacenter1"
+
+  # Service URLs
+  processing.service.url: "http://data-processing-service:8082"
+
+  # Logging Configuration
+  logging.level.com.vehicletelemetry: "INFO"
+  logging.level.org.springframework.kafka: "INFO"
+  logging.level.com.datastax: "WARN"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vts-cassandra-init
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra
+data:
+  init.cql: |
+    CREATE KEYSPACE IF NOT EXISTS vehicle_telemetry
+    WITH REPLICATION = {
+        'class': 'SimpleStrategy',
+        'replication_factor': 3
+    };
+
+    USE vehicle_telemetry;
+
+    CREATE TABLE IF NOT EXISTS vehicle_telemetry (
+        vehicle_id text,
+        timestamp timestamp,
+        latitude double,
+        longitude double,
+        speed double,
+        fuel_level double,
+        engine_temp double,
+        tire_pressure double,
+        PRIMARY KEY (vehicle_id, timestamp)
+    ) WITH CLUSTERING ORDER BY (timestamp DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_vehicle_telemetry_timestamp 
+    ON vehicle_telemetry (timestamp);

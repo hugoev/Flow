@@ -1,0 +1,115 @@
+# Vehicle Telemetry System - Monitoring and Observability
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: kafka-ui
+    tier: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+        component: kafka-ui
+        tier: monitoring
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "VehicleTelemetryCluster"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: "kafka-service:9092"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui-service
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: kafka-ui
+spec:
+  selector:
+    app: kafka-ui
+  ports:
+    - port: 8083
+      targetPort: 8080
+      protocol: TCP
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cassandra-web
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra-web
+    tier: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cassandra-web
+  template:
+    metadata:
+      labels:
+        app: cassandra-web
+        component: cassandra-web
+        tier: monitoring
+    spec:
+      containers:
+        - name: cassandra-web
+          image: omerio/cassandra-web:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: CASSANDRA_HOST
+              value: "cassandra-service"
+            - name: CASSANDRA_PORT
+              value: "9042"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-web-service
+  namespace: vehicle-telemetry
+  labels:
+    app: vehicle-telemetry-system
+    component: cassandra-web
+spec:
+  selector:
+    app: cassandra-web
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+  type: LoadBalancer

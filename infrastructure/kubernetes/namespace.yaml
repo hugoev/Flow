@@ -1,0 +1,11 @@
+# Vehicle Telemetry System - Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vehicle-telemetry
+  labels:
+    name: vehicle-telemetry
+    purpose: iot-platform
+    environment: production
+  annotations:
+    description: "Vehicle Telemetry System - IoT platform for processing vehicle sensor data"

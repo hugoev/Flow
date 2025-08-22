@@ -1,0 +1,209 @@
+# Vehicle Telemetry System - Production Docker Compose
+# This is the main production configuration moved from root to infrastructure
+
+version: '3.8'
+
+services:
+  # Apache Kafka with Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: vts-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: vts-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      KAFKA_CONFLUENT_METRICS_ENABLE: 'true'
+      KAFKA_CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Apache Cassandra
+  cassandra:
+    image: cassandra:4.0
+    hostname: cassandra
+    container_name: vts-cassandra
+    ports:
+      - "9042:9042"
+      - "7000:7000"
+    environment:
+      CASSANDRA_CLUSTER_NAME: VehicleTelemetryCluster
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_RACK: rack1
+      CASSANDRA_ENDPOINT_SNITCH: SimpleSnitch
+      CASSANDRA_SEEDS: cassandra
+      MAX_HEAP_SIZE: 1G
+      HEAP_NEWSIZE: 100M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ./cassandra/init:/docker-entrypoint-initdb.d
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Data Ingestion Service
+  data-ingestion-service:
+    build:
+      context: ../../backend/data-ingestion-service
+      dockerfile: Dockerfile
+    container_name: vts-data-ingestion
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: INFO
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/telemetry/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Data Processing Service
+  data-processing-service:
+    build:
+      context: ../../backend/data-processing-service
+      dockerfile: Dockerfile
+    container_name: vts-data-processing
+    depends_on:
+      kafka:
+        condition: service_healthy
+      cassandra:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_CASSANDRA_CONTACT_POINTS: cassandra
+      SPRING_CASSANDRA_PORT: 9042
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: INFO
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/api/processing/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway Service
+  api-gateway-service:
+    build:
+      context: ../../backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: vts-api-gateway
+    depends_on:
+      data-processing-service:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVICES_PROCESSING_SERVICE_URL: http://data-processing-service:8082
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: INFO
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/telemetry/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring - Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: vts-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: VehicleTelemetryCluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+
+  # Monitoring - Cassandra Web UI
+  cassandra-web:
+    image: omerio/cassandra-web:latest
+    container_name: vts-cassandra-web
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      CASSANDRA_HOST: cassandra
+      CASSANDRA_PORT: 9042
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+
+volumes:
+  cassandra-data:
+    driver: local
+  kafka-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+
+networks:
+  vehicle-telemetry-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
