@@ -1,0 +1,120 @@
+<div class="dashboard">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <h1>Vehicle Telemetry Dashboard</h1>
+      <div class="header-info">
+        <span class="last-update">Last updated: {{ lastUpdate | date:'short' }}</span>
+        <div class="simulation-controls">
+          <div class="simulation-status">
+            <span class="status-text">Simulation: {{ simulationStatus }}</span>
+            <button mat-icon-button (click)="getSimulationInfo()" matTooltip="Get detailed simulation info">
+              <mat-icon>info</mat-icon>
+            </button>
+          </div>
+          <div class="simulation-buttons">
+            <button mat-raised-button (click)="startSimulation()" [disabled]="simulationRunning || loading" color="primary">
+              <mat-icon>play_arrow</mat-icon>
+              Start
+            </button>
+            <button mat-raised-button (click)="stopSimulation()" [disabled]="!simulationRunning || loading" color="warn">
+              <mat-icon>stop</mat-icon>
+              Stop
+            </button>
+            <button mat-raised-button (click)="refreshData()" [disabled]="loading">
+              <mat-icon>refresh</mat-icon>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error" class="error-message">
+    <mat-icon>error</mat-icon>
+    <span>{{ error }}</span>
+    <button mat-button (click)="clearError()">Dismiss</button>
+  </div>
+
+  <!-- Simulation Info -->
+  <div *ngIf="simulationInfo" class="simulation-info">
+    <mat-icon>info</mat-icon>
+    <div class="info-content">
+      <pre>{{ simulationInfo }}</pre>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading">
+    <mat-spinner></mat-spinner>
+    <p>Loading data...</p>
+  </div>
+
+  <!-- Data Display -->
+  <div *ngIf="!loading && !error" class="content">
+    <!-- Summary Stats -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">{{ vehicles.length }}</div>
+        <div class="stat-label">Total Vehicles</div>
+      </div>
+      <div class="stat online">
+        <div class="stat-value">{{ getOnlineVehiclesCount() }}</div>
+        <div class="stat-label">Online</div>
+      </div>
+      <div class="stat offline">
+        <div class="stat-value">{{ getOfflineVehiclesCount() }}</div>
+        <div class="stat-label">Offline</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ getAverageSpeed() }}</div>
+        <div class="stat-label">Avg Speed (km/h)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ getAverageFuelLevel() }}</div>
+        <div class="stat-label">Avg Fuel (%)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">{{ getAverageEngineTemp() }}</div>
+        <div class="stat-label">Avg Temp (°C)</div>
+      </div>
+    </div>
+
+    <!-- Vehicle Data Table -->
+    <div class="data-table">
+      <h2>Vehicle Data</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Vehicle ID</th>
+              <th>Status</th>
+              <th>Speed (km/h)</th>
+              <th>Fuel (%)</th>
+              <th>Temp (°C)</th>
+              <th>Distance (km)</th>
+              <th>Last Update</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let vehicle of vehicles" [class.offline]="vehicle.status === 'offline'">
+              <td class="vehicle-id">{{ vehicle.vehicleId }}</td>
+              <td>
+                <span class="status" [class]="vehicle.status">
+                  {{ vehicle.status | titlecase }}
+                </span>
+              </td>
+              <td>{{ vehicle.currentSpeed }}</td>
+              <td>{{ vehicle.fuelLevel }}</td>
+              <td>{{ vehicle.engineTemp }}</td>
+              <td>{{ vehicle.totalDistance | number:'1.0-0' }}</td>
+              <td>{{ vehicle.lastUpdate | date:'short' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

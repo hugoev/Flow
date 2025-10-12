@@ -1,0 +1,90 @@
+/* You can add global styles to this file, and also import other style files */
+
+// Angular Material theme will be applied automatically
+
+// Global styles
+* {
+  box-sizing: border-box;
+}
+
+// Ensure text is visible but preserve button layouts
+h1, h2, h3, h4, h5, h6, p, span, div {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+// Keep buttons and compact elements intact
+button, .mat-mdc-button, .mat-mdc-icon-button, .status-indicator, .vehicle-count {
+  white-space: nowrap;
+  overflow: visible;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #fafafa;
+  color: #1a1a1a;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+// Material Design overrides for cleaner look
+.mat-mdc-card {
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+  border: 1px solid #e0e0e0 !important;
+}
+
+.mat-mdc-button {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+}
+
+.mat-mdc-icon-button {
+  border-radius: 8px !important;
+}
+
+// Custom scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+// Loading animation
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+// Focus styles
+*:focus {
+  outline: 2px solid #1976d2;
+  outline-offset: 2px;
+}
+
+// Selection styles
+::selection {
+  background: #1976d2;
+  color: white;
+}

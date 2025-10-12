@@ -1,6 +1,7 @@
 package com.vehicletelemetry.processing.controller;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,7 +27,7 @@ import com.vehicletelemetry.processing.repository.TelemetryDataRepository;
  * principles by separating API concerns from business logic.
  */
 @RestController
-@RequestMapping("/api/processing")
+@RequestMapping("/processing")
 public class ProcessingController {
 
     private static final Logger logger = LoggerFactory.getLogger(ProcessingController.class);
@@ -65,14 +66,19 @@ public class ProcessingController {
     @GetMapping("/vehicles/{vehicleId}")
     public ResponseEntity<List<ProcessedTelemetryData>> getVehicleTelemetry(
             @PathVariable String vehicleId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant startTime,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant endTime) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant endTime) {
 
         try {
-            logger.info("Fetching telemetry for vehicle {} from {} to {}", vehicleId, startTime, endTime);
-
-            List<ProcessedTelemetryData> data = telemetryRepository.findByVehicleIdAndTimestampBetween(
-                    vehicleId, startTime, endTime);
+            List<ProcessedTelemetryData> data;
+            
+            if (startTime != null && endTime != null) {
+                logger.info("Fetching telemetry for vehicle {} from {} to {}", vehicleId, startTime, endTime);
+                data = telemetryRepository.findByVehicleAndTimeRange(vehicleId, startTime, endTime);
+            } else {
+                logger.info("Fetching latest telemetry for vehicle {}", vehicleId);
+                data = telemetryRepository.findLatestByVehicleId(vehicleId);
+            }
 
             logger.info("Found {} telemetry records for vehicle {}", data.size(), vehicleId);
             return ResponseEntity.ok(data);
@@ -93,14 +99,47 @@ public class ProcessingController {
         try {
             logger.info("Fetching latest telemetry for vehicle {}", vehicleId);
 
-            // Get the most recent 10 records for the vehicle
-            List<ProcessedTelemetryData> data = telemetryRepository.findTop10ByVehicleIdOrderByTimestampDesc(vehicleId);
+            // Get the most recent records for the vehicle
+            List<ProcessedTelemetryData> data = telemetryRepository.findLatestByVehicleId(vehicleId);
 
             logger.info("Found {} latest records for vehicle {}", data.size(), vehicleId);
             return ResponseEntity.ok(data);
 
         } catch (Exception e) {
             logger.error("Error fetching latest telemetry for vehicle {}: {}", vehicleId, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Get latest telemetry data for all vehicles
+     */
+    @GetMapping("/vehicles/all/latest")
+    public ResponseEntity<List<ProcessedTelemetryData>> getAllVehiclesLatest() {
+        try {
+            logger.info("Fetching latest telemetry for all vehicles");
+
+            // Get all vehicle IDs first
+            List<String> vehicleIds = telemetryRepository.findAll()
+                    .stream()
+                    .map(ProcessedTelemetryData::getVehicleId)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // Get latest data for each vehicle
+            List<ProcessedTelemetryData> allLatestData = new ArrayList<>();
+            for (String vehicleId : vehicleIds) {
+                List<ProcessedTelemetryData> latestData = telemetryRepository.findLatestByVehicleId(vehicleId);
+                if (!latestData.isEmpty()) {
+                    allLatestData.add(latestData.get(0)); // Get the most recent record
+                }
+            }
+
+            logger.info("Found latest data for {} vehicles", allLatestData.size());
+            return ResponseEntity.ok(allLatestData);
+
+        } catch (Exception e) {
+            logger.error("Error fetching latest telemetry for all vehicles: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
     }

@@ -1,9 +1,75 @@
-# Vehicle Telemetry System - Production Docker Compose
-# This is the main production configuration moved from root to infrastructure
-
-version: '3.8'
+# Vehicle Telemetry System - Production IoT Architecture
+# Real-world architecture with MQTT, Kafka, Redis, and Cassandra
+# Following industry standards used by Tesla, BMW, and Uber
 
 services:
+  # MQTT Broker - Real vehicle communication protocol
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: vts-mosquitto
+    ports:
+      - "1883:1883"    # MQTT port
+      - "9001:9001"    # WebSocket port
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "test", "-m", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: vts-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kafka Connect - Enterprise integration
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.4.0
+    hostname: kafka-connect
+    container_name: vts-kafka-connect
+    depends_on:
+      - kafka
+    ports:
+      - "8084:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:29092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: compose-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: false
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    volumes:
+      - kafka-connect-data:/var/lib/kafka-connect/data
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
   # Apache Kafka with Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -35,13 +101,9 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_METRIC_REPORTERS: ""
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
-      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      KAFKA_CONFLUENT_METRICS_ENABLE: 'true'
-      KAFKA_CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     volumes:
       - kafka-data:/var/lib/kafka/data
@@ -61,7 +123,7 @@ services:
     container_name: vts-cassandra
     ports:
       - "9042:9042"
-      - "7000:7000"
+      - "7001:7000"
     environment:
       CASSANDRA_CLUSTER_NAME: VehicleTelemetryCluster
       CASSANDRA_DC: datacenter1
@@ -82,7 +144,7 @@ services:
       timeout: 10s
       retries: 5
 
-  # Data Ingestion Service
+  # Data Ingestion Service - MQTT to Kafka Bridge
   data-ingestion-service:
     build:
       context: ../../backend/data-ingestion-service
@@ -91,11 +153,17 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      mosquitto:
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SERVER_SERVLET_CONTEXT_PATH: /api
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      MQTT_TOPIC_PREFIX: vehicles
+      MQTT_QOS: 1
       LOGGING_LEVEL_COM_VEHICLETELEMETRY: INFO
     networks:
       - vehicle-telemetry-network
@@ -134,26 +202,51 @@ services:
       timeout: 10s
       retries: 3
 
-  # API Gateway Service
-  api-gateway-service:
+  # Telemetry Streaming Service - Real-time data streaming
+  telemetry-streaming-service:
     build:
-      context: ../../backend/api-gateway
+      context: ../../backend/telemetry-streaming-service
       dockerfile: Dockerfile
-    container_name: vts-api-gateway
+    container_name: vts-telemetry-streaming
     depends_on:
       data-processing-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SERVICES_PROCESSING_SERVICE_URL: http://data-processing-service:8082
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_TTL_SECONDS: 300
       LOGGING_LEVEL_COM_VEHICLETELEMETRY: INFO
     networks:
       - vehicle-telemetry-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/telemetry/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Dashboard
+  frontend-dashboard:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: vts-frontend
+    depends_on:
+      telemetry-streaming-service:
+        condition: service_healthy
+    ports:
+      - "4200:80"
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -175,23 +268,31 @@ services:
       - vehicle-telemetry-network
     restart: unless-stopped
 
-  # Monitoring - Cassandra Web UI
-  cassandra-web:
-    image: omerio/cassandra-web:latest
-    container_name: vts-cassandra-web
-    depends_on:
-      cassandra:
-        condition: service_healthy
-    ports:
-      - "3000:3000"
-    environment:
-      CASSANDRA_HOST: cassandra
-      CASSANDRA_PORT: 9042
-    networks:
-      - vehicle-telemetry-network
-    restart: unless-stopped
+  # Monitoring - Cassandra Web UI (Optional - can be removed if not needed)
+  # cassandra-web:
+  #   image: omerio/cassandra-web:latest
+  #   container_name: vts-cassandra-web
+  #   depends_on:
+  #     cassandra:
+  #       condition: service_healthy
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     CASSANDRA_HOST: cassandra
+  #     CASSANDRA_PORT: 9042
+  #   networks:
+  #     - vehicle-telemetry-network
+  #   restart: unless-stopped
 
 volumes:
+  mosquitto-data:
+    driver: local
+  mosquitto-logs:
+    driver: local
+  redis-data:
+    driver: local
+  kafka-connect-data:
+    driver: local
   cassandra-data:
     driver: local
   kafka-data:

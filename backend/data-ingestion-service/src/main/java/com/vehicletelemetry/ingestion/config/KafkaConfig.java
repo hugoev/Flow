@@ -13,7 +13,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vehicletelemetry.ingestion.model.TelemetryData;
 
 /**
@@ -97,13 +96,17 @@ public class KafkaConfig {
     }
 
     /**
-     * Custom ObjectMapper for JSON serialization.
-     * Configured to handle Java 8 time types properly.
+     * Creates a String-based Kafka template for MQTT bridge service.
+     * This is needed for the MqttKafkaBridgeService which works with raw JSON
+     * strings.
      */
     @Bean
-    public ObjectMapper objectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules(); // Registers Java 8 time modules
-        return mapper;
+    public KafkaTemplate<String, String> stringKafkaTemplate() {
+        Map<String, Object> stringProps = new HashMap<>(producerConfigs());
+        stringProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+
+        ProducerFactory<String, String> stringFactory = new DefaultKafkaProducerFactory<>(stringProps);
+        return new KafkaTemplate<>(stringFactory);
     }
+
 }

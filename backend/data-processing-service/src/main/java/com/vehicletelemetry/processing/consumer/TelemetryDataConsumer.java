@@ -28,7 +28,7 @@ import com.vehicletelemetry.processing.service.TelemetryProcessingService;
 public class TelemetryDataConsumer {
 
     private static final Logger logger = LoggerFactory.getLogger(TelemetryDataConsumer.class);
-    private static final String TELEMETRY_TOPIC = "vehicle-telemetry";
+    private static final String TELEMETRY_TOPIC = "vehicles.telemetry";
 
     private final TelemetryProcessingService processingService;
 

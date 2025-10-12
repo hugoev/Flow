@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vehicletelemetry.ingestion.model.TelemetryData;
 import com.vehicletelemetry.ingestion.service.TelemetryIngestionService;
 
@@ -30,28 +31,46 @@ import com.vehicletelemetry.ingestion.service.TelemetryIngestionService;
 class TelemetryIngestionServiceTest {
 
     @Mock
-    private KafkaTemplate<String, TelemetryData> kafkaTemplate;
+    private KafkaTemplate<String, String> kafkaTemplate;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     private TelemetryIngestionService telemetryService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        telemetryService = new TelemetryIngestionService(kafkaTemplate);
+        telemetryService = new TelemetryIngestionService();
+        // Use reflection to inject mocks since the service uses @Autowired
+        try {
+            java.lang.reflect.Field kafkaField = TelemetryIngestionService.class.getDeclaredField("kafkaTemplate");
+            kafkaField.setAccessible(true);
+            kafkaField.set(telemetryService, kafkaTemplate);
+
+            java.lang.reflect.Field objectMapperField = TelemetryIngestionService.class
+                    .getDeclaredField("objectMapper");
+            objectMapperField.setAccessible(true);
+            objectMapperField.set(telemetryService, objectMapper);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inject mocks", e);
+        }
     }
 
     @Test
-    void shouldProcessValidTelemetryData() {
+    void shouldProcessValidTelemetryData() throws Exception {
         // Given
         TelemetryData validData = createValidTelemetryData();
-        when(kafkaTemplate.send(anyString(), anyString(), any(TelemetryData.class)))
+        when(objectMapper.writeValueAsString(any(TelemetryData.class)))
+                .thenReturn("{\"vehicleId\":\"VH001\"}");
+        when(kafkaTemplate.send(anyString(), anyString(), anyString()))
                 .thenReturn(null); // Mock successful send
 
         // When
         assertDoesNotThrow(() -> telemetryService.processTelemetryData(validData));
 
         // Then
-        verify(kafkaTemplate).send(eq("vehicle-telemetry"), eq("VH001"), eq(validData));
+        verify(kafkaTemplate).send(eq("vehicles.telemetry"), eq("VH001"), anyString());
     }
 
     @Test
@@ -65,7 +84,7 @@ class TelemetryIngestionServiceTest {
                 IllegalArgumentException.class,
                 () -> telemetryService.processTelemetryData(invalidData));
 
-        assertEquals("Vehicle ID cannot be null or empty", exception.getMessage());
+        assertEquals("Vehicle ID is required", exception.getMessage());
         verifyNoInteractions(kafkaTemplate); // Should not attempt to publish
     }
 
@@ -80,15 +99,17 @@ class TelemetryIngestionServiceTest {
                 IllegalArgumentException.class,
                 () -> telemetryService.processTelemetryData(invalidData));
 
-        assertEquals("Timestamp cannot be null", exception.getMessage());
+        assertEquals("Timestamp is required", exception.getMessage());
         verifyNoInteractions(kafkaTemplate);
     }
 
     @Test
-    void shouldHandleKafkaPublishingFailure() {
+    void shouldHandleKafkaPublishingFailure() throws Exception {
         // Given
         TelemetryData validData = createValidTelemetryData();
-        when(kafkaTemplate.send(anyString(), anyString(), any(TelemetryData.class)))
+        when(objectMapper.writeValueAsString(any(TelemetryData.class)))
+                .thenReturn("{\"vehicleId\":\"VH001\"}");
+        when(kafkaTemplate.send(anyString(), anyString(), anyString()))
                 .thenThrow(new RuntimeException("Kafka connection failed"));
 
         // When & Then
@@ -96,7 +117,7 @@ class TelemetryIngestionServiceTest {
                 RuntimeException.class,
                 () -> telemetryService.processTelemetryData(validData));
 
-        assertEquals("Failed to publish telemetry data", exception.getMessage());
+        assertEquals("Failed to process telemetry data", exception.getMessage());
     }
 
     private TelemetryData createValidTelemetryData() {
