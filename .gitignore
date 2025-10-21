@@ -122,3 +122,9 @@ zookeeper-logs/
 # Ignore specific Markdown files
 about.md
 knowledge.md
+IMPLEMENTATION_STATUS.md
+INFO.md
+DEVELOPMENT.md
+docs/troubleshooting/TROUBLESHOOTING.md
+docs/architecture/ARCHITECTURE.md
+docs/architecture/PRODUCTION_ARCHITECTURE.md

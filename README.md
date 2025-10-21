@@ -18,15 +18,36 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
                                 │                       │                       │
                                 ▼                       ▼                       ▼
                        ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-                       │   REDIS         │    │   PROCESSING    │    │   API GATEWAY   │
-                       │  (Caching)      │    │   SERVICE       │    │  (REST API)     │
+                       │   REDIS         │    │   PROCESSING    │    │   STREAMING     │
+                       │  (Caching)      │    │   SERVICE       │    │   SERVICE       │
                        └─────────────────┘    └─────────────────┘    └─────────────────┘
                                                        │                       │
                                                        ▼                       ▼
                                                ┌─────────────────┐    ┌─────────────────┐
-                                               │   FRONTEND      │    │   MONITORING    │
-                                               │  (Angular)      │    │  (Grafana)      │
+                                               │   FRONTEND      │    │   MANAGEMENT    │
+                                               │  (Angular)      │    │  (Kafka UI)     │
                                                └─────────────────┘    └─────────────────┘
+```
+
+### **🔄 Data Flow**
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   VEHICLES      │───▶│   INGESTION     │───▶│   KAFKA        │
+│  (MQTT/REST)    │    │   SERVICE       │    │  (Topics)      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                       │
+                                ▼                       ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   PROCESSING    │───▶│   CASSANDRA    │
+                       │   SERVICE       │    │  (Storage)     │
+                       └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   STREAMING     │───▶│   FRONTEND      │
+                       │   SERVICE       │    │  (Angular)      │
+                       └─────────────────┘    └─────────────────┘
 ```
 
 ## 🚀 **Key Features**
@@ -81,19 +102,19 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 - **Redis 7:** In-memory caching
 - **Time-series Optimization:** Efficient data storage
 
-### **Frontend**
+### **Microservices**
 
-- **Angular 17:** Modern web framework
-- **Angular Material:** UI components
-- **TypeScript:** Type-safe development
-- **Server-Sent Events:** Real-time updates
+- **Data Ingestion Service:** MQTT → Kafka bridge + REST API
+- **Data Processing Service:** Kafka → Cassandra processing
+- **Telemetry Streaming Service:** Real-time SSE API
+- **Frontend Dashboard:** Angular 17 with live updates
 
 ### **Infrastructure**
 
-- **Docker:** Containerization
-- **Docker Compose:** Local development
-- **Kubernetes:** Production orchestration
-- **Nginx:** Reverse proxy
+- **Docker:** Containerization with hot reloading
+- **Docker Compose:** Development environment
+- **Kafka UI:** Message streaming monitoring
+- **Redis Commander:** Cache management
 
 ## 📊 **Performance Metrics**
 
@@ -186,14 +207,15 @@ curl http://localhost:8081/api/simulation/status
 
 ### **6. Access Services**
 
-| Service                 | URL                   | Purpose                      |
-| ----------------------- | --------------------- | ---------------------------- |
-| **Frontend Dashboard**  | http://localhost:4200 | Real-time vehicle monitoring |
-| **Data Ingestion API**  | http://localhost:8081 | MQTT → Kafka bridge          |
-| **Telemetry Streaming** | http://localhost:8080 | SSE real-time API            |
-| **Data Processing**     | http://localhost:8082 | Kafka → Cassandra            |
-| **Kafka UI**            | http://localhost:8083 | Message streaming monitor    |
-| **Cassandra Web**       | http://localhost:9042 | Database management          |
+| Service                 | URL                   | Purpose                        |
+| ----------------------- | --------------------- | ------------------------------ |
+| **Frontend Dashboard**  | http://localhost:4200 | Real-time vehicle monitoring   |
+| **Data Ingestion API**  | http://localhost:8081 | MQTT → Kafka bridge + REST API |
+| **Telemetry Streaming** | http://localhost:8083 | SSE real-time API              |
+| **Data Processing**     | http://localhost:8082 | Kafka → Cassandra              |
+| **Kafka UI**            | http://localhost:8084 | Message streaming monitor      |
+| **Redis Commander**     | http://localhost:8085 | Cache management               |
+| **Cassandra**           | localhost:9042        | Database (CQL)                 |
 
 ### **7. Development Workflow**
 
