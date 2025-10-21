@@ -35,27 +35,6 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
                        └─────────────────┘
 ```
 
-### **🔄 Data Flow**
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   VEHICLES      │───▶│   MQTT BROKER   │───▶│   INGESTION     │
-│  (Telemetry)    │    │  (Mosquitto)    │    │   SERVICE       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                        │
-                                                        ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CASSANDRA     │◄───│   PROCESSING    │◄───│   KAFKA         │
-│  (Storage)      │    │   SERVICE       │    │  (Topics)       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │   STREAMING     │───▶│   FRONTEND      │
-                       │   SERVICE       │    │  (Dashboard)    │
-                       └─────────────────┘    └─────────────────┘
-```
-
 ## 🚀 **Key Features**
 
 ### **Real-World IoT Communication**
