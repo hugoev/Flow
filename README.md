@@ -72,13 +72,7 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 - **High Write Throughput:** 5,000+ writes/sec
 - **Time-based Queries:** Efficient data retrieval
 - **Horizontal Scaling:** Add nodes dynamically
-
-### **Intelligent Caching**
-
-- **Redis:** 5-minute TTL for telemetry data
-- **80% Query Reduction:** Minimize database load
-- **5x Performance:** Faster response times
-- **Cost Optimization:** Reduce compute resources
+- **Materialized Views:** Optimized latest data queries
 
 ## 🛠️ **Technology Stack**
 
@@ -99,8 +93,8 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 ### **Data Storage**
 
 - **Apache Cassandra 4.1:** Time-series database
-- **Redis 7:** In-memory caching
 - **Time-series Optimization:** Efficient data storage
+- **Materialized Views:** Fast latest data access
 
 ### **Microservices**
 
@@ -114,7 +108,7 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 - **Docker:** Containerization with hot reloading
 - **Docker Compose:** Development environment
 - **Kafka UI:** Message streaming monitoring
-- **Redis Commander:** Cache management
+- **Development Tools:** Real-time debugging and monitoring
 
 ## 📊 **Performance Metrics**
 
@@ -123,10 +117,10 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 | **MQTT Throughput**   | 10,000+ msg/sec    | Vehicle telemetry ingestion |
 | **Kafka Throughput**  | 8,000+ records/sec | Message streaming           |
 | **Cassandra Writes**  | 5,000+ writes/sec  | Database operations         |
-| **API Response Time** | < 100ms            | Cached responses            |
-| **Cache Hit Rate**    | 80%+               | Redis efficiency            |
+| **API Response Time** | < 200ms            | Database queries            |
 | **Vehicle Fleet**     | 100+ vehicles      | Realistic fleet simulation  |
-| **Uptime**            | 99.9%              | High availability           |
+| **Data Retention**    | Time-series        | Optimized storage           |
+| **Hot Reloading**     | Enabled            | Fast development cycle      |
 
 ## 🚀 **Developer Quick Start**
 
@@ -211,10 +205,9 @@ curl http://localhost:8081/api/simulation/status
 | ----------------------- | --------------------- | ------------------------------ |
 | **Frontend Dashboard**  | http://localhost:4200 | Real-time vehicle monitoring   |
 | **Data Ingestion API**  | http://localhost:8081 | MQTT → Kafka bridge + REST API |
-| **Telemetry Streaming** | http://localhost:8083 | SSE real-time API              |
+| **Telemetry Streaming** | http://localhost:8083 | Real-time API                  |
 | **Data Processing**     | http://localhost:8082 | Kafka → Cassandra              |
 | **Kafka UI**            | http://localhost:8084 | Message streaming monitor      |
-| **Redis Commander**     | http://localhost:8085 | Cache management               |
 | **Cassandra**           | localhost:9042        | Database (CQL)                 |
 
 ### **7. Development Workflow**
@@ -376,11 +369,6 @@ MQTT_QOS=1
 KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 KAFKA_NUM_PARTITIONS=3
 
-# Redis Configuration
-REDIS_HOST=redis
-REDIS_PORT=6379
-CACHE_TTL_SECONDS=300
-
 # Cassandra Configuration
 CASSANDRA_HOST=cassandra
 CASSANDRA_PORT=9042
@@ -393,13 +381,11 @@ CASSANDRA_PORT=9042
 | **Mosquitto**           | 1883, 9001  | MQTT Broker       | ✅ Running |
 | **Kafka**               | 9092, 29092 | Message Streaming | ✅ Running |
 | **Cassandra**           | 9042, 7001  | Database          | ✅ Running |
-| **Redis**               | 6379        | Caching           | ✅ Running |
-| **Telemetry Streaming** | 8080        | SSE Real-time API | ✅ Running |
+| **Telemetry Streaming** | 8083        | Real-time API     | ✅ Running |
 | **Data Ingestion**      | 8081        | MQTT→Kafka        | ✅ Running |
 | **Data Processing**     | 8082        | Kafka→Cassandra   | ✅ Running |
 | **Frontend**            | 4200        | Dashboard         | ✅ Running |
-| **Kafka UI**            | 8083        | Management        | ✅ Running |
-| **Kafka Connect**       | 8084        | Integration       | ✅ Running |
+| **Kafka UI**            | 8084        | Management        | ✅ Running |
 
 ### **Common Development Scenarios**
 
