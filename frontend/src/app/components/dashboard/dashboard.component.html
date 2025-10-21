@@ -87,13 +87,12 @@
             <th>Speed (km/h)</th>
             <th>Fuel (%)</th>
             <th>Temp (°C)</th>
-            <th>Distance (km)</th>
             <th>Last Update</th>
           </tr>
         </thead>
         <tbody>
           <tr class="empty-row">
-            <td colspan="7" class="empty-message">
+            <td colspan="6" class="empty-message">
               <span>No vehicle data available</span>
             </td>
           </tr>
@@ -142,7 +141,6 @@
             <th>Speed (km/h)</th>
             <th>Fuel (%)</th>
             <th>Temp (°C)</th>
-            <th>Distance (km)</th>
             <th>Last Update</th>
           </tr>
         </thead>
@@ -157,7 +155,6 @@
             <td>{{ vehicle.currentSpeed }}</td>
             <td>{{ vehicle.fuelLevel }}</td>
             <td>{{ vehicle.engineTemp }}</td>
-            <td>{{ vehicle.totalDistance | number:'1.0-0' }}</td>
             <td class="timestamp">{{ vehicle.lastUpdate | date:'short' }}</td>
           </tr>
         </tbody>
