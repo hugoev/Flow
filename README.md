@@ -18,8 +18,8 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
                                 │                       │                       │
                                 ▼                       ▼                       ▼
                        ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-                       │   REDIS         │    │   PROCESSING    │    │   STREAMING     │
-                       │  (Caching)      │    │   SERVICE       │    │   SERVICE       │
+                       │   INGESTION     │    │   PROCESSING    │    │   STREAMING     │
+                       │   SERVICE       │    │   SERVICE       │    │   SERVICE       │
                        └─────────────────┘    └─────────────────┘    └─────────────────┘
                                                        │                       │
                                                        ▼                       ▼
