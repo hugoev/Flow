@@ -11,42 +11,48 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 ## 🏗️ **Architecture Overview**
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   VEHICLES      │───▶│   MQTT BROKER   │───▶│   KAFKA         │───▶│   CASSANDRA     │
-│  (MQTT Client)  │    │  (Mosquitto)    │    │  (Streaming)    │    │  (Time-Series)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                       │                       │
-                                ▼                       ▼                       ▼
-                       ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-                       │   INGESTION     │    │   PROCESSING    │    │   STREAMING     │
-                       │   SERVICE       │    │   SERVICE       │    │   SERVICE       │
-                       └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                       │                       │
-                                                       ▼                       ▼
-                                               ┌─────────────────┐    ┌─────────────────┐
-                                               │   FRONTEND      │    │   MANAGEMENT    │
-                                               │  (Angular)      │    │  (Kafka UI)     │
-                                               └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   VEHICLES      │───▶│   MQTT BROKER   │───▶│   INGESTION     │
+│  (MQTT Client)  │    │  (Mosquitto)    │    │   SERVICE       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   CASSANDRA     │◄───│   PROCESSING    │◄───│   KAFKA         │
+│  (Time-Series)  │    │   SERVICE       │    │  (Streaming)    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   STREAMING     │───▶│   FRONTEND      │
+                       │   SERVICE       │    │  (Angular)      │
+                       └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   MANAGEMENT    │
+                       │  (Kafka UI)     │
+                       └─────────────────┘
 ```
 
 ### **🔄 Data Flow**
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   VEHICLES      │───▶│   INGESTION     │───▶│   KAFKA        │
-│  (MQTT/REST)    │    │   SERVICE       │    │  (Topics)      │
+│   VEHICLES      │───▶│   MQTT BROKER   │───▶│   INGESTION     │
+│  (Telemetry)    │    │  (Mosquitto)    │    │   SERVICE       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                       │
-                                ▼                       ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │   PROCESSING    │───▶│   CASSANDRA    │
-                       │   SERVICE       │    │  (Storage)     │
-                       └─────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   CASSANDRA     │◄───│   PROCESSING    │◄───│   KAFKA         │
+│  (Storage)      │    │   SERVICE       │    │  (Topics)       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                                 ▼
                        ┌─────────────────┐    ┌─────────────────┐
                        │   STREAMING     │───▶│   FRONTEND      │
-                       │   SERVICE       │    │  (Angular)      │
+                       │   SERVICE       │    │  (Dashboard)    │
                        └─────────────────┘    └─────────────────┘
 ```
 
