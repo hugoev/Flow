@@ -18,7 +18,7 @@ export interface BackendTelemetryData {
 
 export interface VehicleSummary {
   vehicleId: string;
-  lastUpdate: string;
+  lastUpdate: Date;
   currentSpeed: number;
   fuelLevel: number;
   engineTemp: number;
@@ -35,7 +35,7 @@ export interface VehicleSummary {
 export class BackendDataService {
   private processingApiUrl = 'http://localhost:8082/api/processing';
   private ingestionApiUrl = 'http://localhost:8081/api';
-  private streamingApiUrl = 'http://localhost:8080/api/telemetry';
+  private streamingApiUrl = 'http://localhost:8083/api/telemetry';
   
   private vehiclesSubject = new BehaviorSubject<VehicleSummary[]>([]);
   private telemetrySubject = new BehaviorSubject<BackendTelemetryData[]>([]);
@@ -44,6 +44,7 @@ export class BackendDataService {
   public telemetryData$ = this.telemetrySubject.asObservable();
 
   constructor(private http: HttpClient) {
+    console.log('BackendDataService constructor called');
     // Start polling for real-time updates
     this.startPolling();
   }
@@ -83,13 +84,15 @@ export class BackendDataService {
             if (data && data.length > 0) {
               const latest = data[0]; // Get the most recent record
               const now = new Date();
-              const dataTime = new Date(latest.key.timestamp);
+              // Convert Unix timestamp (seconds) to milliseconds for JavaScript Date
+              const timestamp = Number(latest.key.timestamp);
+              const dataTime = new Date(timestamp * 1000);
               const timeDiff = now.getTime() - dataTime.getTime();
               const isOnline = timeDiff < 300000; // 5 minutes threshold
               
               vehicles.push({
                 vehicleId: latest.key.vehicleId,
-                lastUpdate: latest.key.timestamp,
+                lastUpdate: dataTime,
                 currentSpeed: latest.speed,
                 fuelLevel: latest.fuelLevel,
                 engineTemp: latest.engineTemp,
@@ -211,9 +214,14 @@ export class BackendDataService {
    * Start polling for real-time updates
    */
   private startPolling(): void {
+    console.log('Starting polling for vehicle data...');
     // Poll every 10 seconds for vehicle summaries
     setInterval(() => {
-      this.getAllVehicles().subscribe();
+      console.log('Polling for vehicle data...');
+      this.getAllVehicles().subscribe({
+        next: (vehicles) => console.log('Received vehicles:', vehicles.length),
+        error: (error) => console.error('Error polling vehicles:', error)
+      });
     }, 10000);
   }
 

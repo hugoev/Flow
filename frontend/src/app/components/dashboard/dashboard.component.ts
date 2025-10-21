@@ -1,12 +1,5 @@
 import { CommonModule, DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatGridListModule } from '@angular/material/grid-list';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription } from 'rxjs';
 import { BackendDataService, VehicleSummary } from '../../services/backend-data.service';
 
@@ -15,19 +8,12 @@ import { BackendDataService, VehicleSummary } from '../../services/backend-data.
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatGridListModule,
-    MatIconModule,
-    MatButtonModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
-    MatTooltipModule,
     DatePipe,
     DecimalPipe,
     TitleCasePipe
   ],
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.scss']
+  styleUrls: ['./dashboard.component.css']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   vehicles: VehicleSummary[] = [];
@@ -39,7 +25,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   simulationInfo = '';
   private subscription: Subscription = new Subscription();
 
-  constructor(private backendDataService: BackendDataService) {}
+  constructor(private backendDataService: BackendDataService) {
+    console.log('DashboardComponent constructor called');
+  }
 
   ngOnInit(): void {
     this.loadVehicles();

@@ -1,73 +1,318 @@
-# Vehicle Telemetry System - Development Docker Compose
-# Lightweight development configuration with fast startup
-
-version: '3.8'
+# Vehicle Telemetry System - Development Environment
+# Hot reloading enabled for full-stack development
+# Includes all services with volume mounts for live code changes
 
 services:
-  # Development Kafka (single node, minimal config)
-  zookeeper-dev:
+  # MQTT Broker - Real vehicle communication protocol
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: vts-mosquitto-dev
+    ports:
+      - "1883:1883"    # MQTT port
+      - "9001:9001"    # WebSocket port
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "test", "-m", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: vts-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Apache Kafka with Zookeeper
+  zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    hostname: zookeeper-dev
+    hostname: zookeeper
     container_name: vts-zookeeper-dev
     ports:
       - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
     networks:
-      - vts-dev-network
+      - vehicle-telemetry-network
+    restart: unless-stopped
 
-  kafka-dev:
+  kafka:
     image: confluentinc/cp-kafka:7.4.0
-    hostname: kafka-dev
+    hostname: kafka
     container_name: vts-kafka-dev
     depends_on:
-      - zookeeper-dev
+      - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-dev:2181'
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-dev:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_METRIC_REPORTERS: ""
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     networks:
-      - vts-dev-network
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
-  # Development Cassandra (minimal resources)
-  cassandra-dev:
+  # Apache Cassandra
+  cassandra:
     image: cassandra:4.0
-    hostname: cassandra-dev
+    hostname: cassandra
     container_name: vts-cassandra-dev
     ports:
       - "9042:9042"
+      - "7001:7000"
     environment:
-      CASSANDRA_CLUSTER_NAME: VTSDevCluster
+      CASSANDRA_CLUSTER_NAME: VehicleTelemetryCluster
       CASSANDRA_DC: datacenter1
       CASSANDRA_RACK: rack1
       CASSANDRA_ENDPOINT_SNITCH: SimpleSnitch
-      MAX_HEAP_SIZE: 512M
-      HEAP_NEWSIZE: 50M
+      CASSANDRA_SEEDS: cassandra
+      MAX_HEAP_SIZE: 1G
+      HEAP_NEWSIZE: 100M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ./cassandra/init:/docker-entrypoint-initdb.d
     networks:
-      - vts-dev-network
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
-  # Development Monitoring
-  kafka-ui-dev:
+  # Data Ingestion Service - Development with Hot Reloading
+  data-ingestion-service:
+    build:
+      context: ../../backend/data-ingestion-service
+      dockerfile: Dockerfile.dev
+    container_name: vts-data-ingestion-dev
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    volumes:
+      # Hot reloading for Java source code
+      - ../../backend/data-ingestion-service/src:/app/src
+      - ../../backend/data-ingestion-service/target:/app/target
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SERVER_SERVLET_CONTEXT_PATH: /api
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      MQTT_TOPIC_PREFIX: vehicles
+      MQTT_QOS: 1
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: DEBUG
+      # Hot reloading configuration
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: true
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/telemetry/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Data Processing Service - Development with Hot Reloading
+  data-processing-service:
+    build:
+      context: ../../backend/data-processing-service
+      dockerfile: Dockerfile.dev
+    container_name: vts-data-processing-dev
+    depends_on:
+      kafka:
+        condition: service_healthy
+      cassandra:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    volumes:
+      # Hot reloading for Java source code
+      - ../../backend/data-processing-service/src:/app/src
+      - ../../backend/data-processing-service/target:/app/target
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_CASSANDRA_CONTACT_POINTS: cassandra
+      SPRING_CASSANDRA_PORT: 9042
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: DEBUG
+      # Hot reloading configuration
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: true
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/api/processing/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Telemetry Streaming Service - Development with Hot Reloading
+  telemetry-streaming-service:
+    build:
+      context: ../../backend/telemetry-streaming-service
+      dockerfile: Dockerfile.dev
+    container_name: vts-telemetry-streaming-dev
+    depends_on:
+      data-processing-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    volumes:
+      # Hot reloading for Java source code
+      - ../../backend/telemetry-streaming-service/src:/app/src
+      - ../../backend/telemetry-streaming-service/target:/app/target
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SERVICES_PROCESSING_SERVICE_URL: http://data-processing-service:8082
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_TTL_SECONDS: 300
+      LOGGING_LEVEL_COM_VEHICLETELEMETRY: DEBUG
+      # Hot reloading configuration
+      SPRING_DEVTOOLS_RESTART_ENABLED: true
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: true
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/api/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Frontend Dashboard - Development with Hot Reloading
+  frontend-dashboard:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile.dev
+    container_name: vts-frontend-dev
+    depends_on:
+      telemetry-streaming-service:
+        condition: service_healthy
+    ports:
+      - "4200:4200"  # Angular dev server port
+    volumes:
+      # Hot reloading for Angular source code
+      - ../../frontend/src:/app/src
+      - ../../frontend/angular.json:/app/angular.json
+      - ../../frontend/package.json:/app/package.json
+      - ../../frontend/package-lock.json:/app/package-lock.json
+      - ../../frontend/tsconfig.json:/app/tsconfig.json
+      - ../../frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ../../frontend/tsconfig.spec.json:/app/tsconfig.spec.json
+      # Node modules cache
+      - node-modules-cache:/app/node_modules
+    environment:
+      NODE_ENV: development
+      BACKEND_URL: http://localhost:8083
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring - Kafka UI
+  kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: vts-kafka-ui-dev
     depends_on:
-      - kafka-dev
+      kafka:
+        condition: service_healthy
     ports:
-      - "8083:8080"
+      - "8084:8080"
     environment:
-      KAFKA_CLUSTERS_0_NAME: dev
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-dev:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper-dev:2181
+      KAFKA_CLUSTERS_0_NAME: VehicleTelemetryCluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
-      - vts-dev-network
+      - vehicle-telemetry-network
+    restart: unless-stopped
+
+  # Development Tools - Redis Commander
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: vts-redis-commander-dev
+    depends_on:
+      - redis
+    ports:
+      - "8085:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    networks:
+      - vehicle-telemetry-network
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:
+    driver: local
+  mosquitto-logs:
+    driver: local
+  redis-data:
+    driver: local
+  cassandra-data:
+    driver: local
+  kafka-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  # Development caches
+  node-modules-cache:
+    driver: local
 
 networks:
-  vts-dev-network:
+  vehicle-telemetry-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

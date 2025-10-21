@@ -65,6 +65,10 @@ public class TelemetryData {
     @Max(value = 50, message = "Tire pressure must be reasonable")
     private Double tirePressure;
 
+    @JsonProperty("totalDistance")
+    @Min(value = 0, message = "Total distance must be non-negative")
+    private Double totalDistance;
+
     // Default constructor required for JSON deserialization
     public TelemetryData() {
     }
@@ -72,7 +76,7 @@ public class TelemetryData {
     // Constructor for creating instances programmatically
     public TelemetryData(String vehicleId, Instant timestamp, Double latitude,
             Double longitude, Double speed, Double fuelLevel,
-            Double engineTemp, Double tirePressure) {
+            Double engineTemp, Double tirePressure, Double totalDistance) {
         this.vehicleId = vehicleId;
         this.timestamp = timestamp;
         this.latitude = latitude;
@@ -81,6 +85,7 @@ public class TelemetryData {
         this.fuelLevel = fuelLevel;
         this.engineTemp = engineTemp;
         this.tirePressure = tirePressure;
+        this.totalDistance = totalDistance;
     }
 
     // Getters and setters with clear documentation
@@ -146,6 +151,14 @@ public class TelemetryData {
 
     public void setTirePressure(Double tirePressure) {
         this.tirePressure = tirePressure;
+    }
+
+    public Double getTotalDistance() {
+        return totalDistance;
+    }
+
+    public void setTotalDistance(Double totalDistance) {
+        this.totalDistance = totalDistance;
     }
 
     @Override

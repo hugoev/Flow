@@ -35,7 +35,7 @@ frontend/
 │   │   │   └── telemetry.service.ts # API integration service
 │   │   ├── app.component.*          # Root component
 │   │   └── app.config.ts            # App configuration
-│   ├── styles.scss                  # Global styles and Material theme
+│   ├── styles.css                   # Global styles and custom theme
 │   └── main.ts                      # Application bootstrap
 ├── Dockerfile                       # Container configuration
 ├── nginx.conf                       # Nginx configuration
