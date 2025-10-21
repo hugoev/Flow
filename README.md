@@ -2,6 +2,12 @@
 
 A **production-ready IoT platform** for ingesting, processing, and visualizing vehicle telemetry data at scale. Built with industry-standard technologies used by Tesla, BMW, and Uber.
 
+## 📊 **Dashboard Preview**
+
+![Vehicle Telemetry Dashboard](images/dashboard.png)
+
+_Real-time vehicle monitoring with live telemetry data, status tracking, and instant alerts_
+
 ## 🏗️ **Architecture Overview**
 
 ```
