@@ -260,4 +260,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   canGoToNextPage(): boolean {
     return this.currentPage < this.totalPages - 1;
   }
+
+  getCurrentPageEnd(): number {
+    return Math.min((this.currentPage + 1) * 15, this.totalVehicles);
+  }
 }
