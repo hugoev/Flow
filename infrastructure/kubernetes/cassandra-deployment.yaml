@@ -1,4 +1,4 @@
-# Vehicle Telemetry System - Cassandra StatefulSet
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Cassandra StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -9,7 +9,7 @@ metadata:
     component: cassandra
 spec:
   serviceName: cassandra-service
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: cassandra
@@ -26,7 +26,7 @@ spec:
             - containerPort: 7000
           env:
             - name: CASSANDRA_SEEDS
-              value: "cassandra-0.cassandra-service,cassandra-1.cassandra-service,cassandra-2.cassandra-service"
+              value: "cassandra-0.cassandra-service"
             - name: CASSANDRA_CLUSTER_NAME
               value: "VehicleTelemetryCluster"
             - name: CASSANDRA_DC
@@ -41,11 +41,11 @@ spec:
               value: "200M"
           resources:
             requests:
-              memory: "3Gi"
-              cpu: "1000m"
+              memory: "1Gi"
+              cpu: "500m"
             limits:
-              memory: "4Gi"
-              cpu: "2000m"
+              memory: "2Gi"
+              cpu: "1000m"
           volumeMounts:
             - name: cassandra-data
               mountPath: /var/lib/cassandra
@@ -78,7 +78,7 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 20Gi
+            storage: 10Gi
         storageClassName: fast-ssd
 
 ---
@@ -104,20 +104,3 @@ spec:
       name: intra-node
   clusterIP: None # Headless service for StatefulSet
 
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: cassandra-external
-  namespace: vehicle-telemetry
-  labels:
-    app: vehicle-telemetry-system
-    component: cassandra
-spec:
-  selector:
-    app: cassandra
-  ports:
-    - port: 9042
-      targetPort: 9042
-      protocol: TCP
-  type: LoadBalancer # External access for management tools

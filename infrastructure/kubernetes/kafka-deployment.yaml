@@ -1,4 +1,4 @@
-# Vehicle Telemetry System - Kafka Deployment
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Kafka Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,13 +34,7 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
-          volumeMounts:
-            - name: zookeeper-data
-              mountPath: /var/lib/zookeeper/data
-      volumes:
-        - name: zookeeper-data
-          persistentVolumeClaim:
-            claimName: zookeeper-pvc
+# Using ephemeral storage for development
 
 ---
 apiVersion: v1
@@ -69,7 +63,7 @@ metadata:
     app: vehicle-telemetry-system
     component: kafka
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: kafka
@@ -96,21 +90,19 @@ spec:
             - name: KAFKA_ADVERTISED_LISTENERS
               value: "PLAINTEXT://$(HOSTNAME).kafka-service:29092"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "3"
+              value: "1"
             - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
               value: "0"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
               value: "true"
           resources:
             requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
               memory: "1Gi"
               cpu: "500m"
-            limits:
-              memory: "2Gi"
-              cpu: "1000m"
-          volumeMounts:
-            - name: kafka-data
-              mountPath: /var/lib/kafka/data
+# Using ephemeral storage for development
           livenessProbe:
             exec:
               command:
@@ -129,10 +121,7 @@ spec:
                 - --list
             initialDelaySeconds: 15
             periodSeconds: 5
-      volumes:
-        - name: kafka-data
-          persistentVolumeClaim:
-            claimName: kafka-pvc
+# Using ephemeral storage for development
 
 ---
 apiVersion: v1
