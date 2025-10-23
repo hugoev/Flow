@@ -4,7 +4,7 @@ A **production-ready IoT platform** for ingesting, processing, and visualizing v
 
 ## 📊 **Dashboard Preview**
 
-![Vehicle Telemetry Dashboard](images/dashboard.png)
+![Vehicle Telemetry Dashboard](images/dash.png)
 
 _Real-time vehicle monitoring with live telemetry data, status tracking, and instant alerts_
 
