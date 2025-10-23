@@ -91,11 +91,11 @@
     <div class="compact-stats-bar">
       <div class="stats-row">
         <span class="stat-item">Fleet: <strong>{{ totalVehicles }}</strong></span>
-        <span class="stat-item text-success">Online: <strong>{{ getOnlineVehiclesCount() }}</strong></span>
-        <span class="stat-item text-error">Offline: <strong>{{ getOfflineVehiclesCount() }}</strong></span>
-        <span class="stat-item">Avg Speed: <strong>{{ getAverageSpeed() }} km/h</strong></span>
-        <span class="stat-item">Avg Fuel: <strong>{{ getAverageFuelLevel() }}%</strong></span>
-        <span class="stat-item">Avg Temp: <strong>{{ getAverageEngineTemp() }}°C</strong></span>
+        <span class="stat-item text-success">Online: <strong>{{ getTotalFleetOnlineCount() }}</strong></span>
+        <span class="stat-item text-error">Offline: <strong>{{ getTotalFleetOfflineCount() }}</strong></span>
+        <span class="stat-item">Avg Speed: <strong>{{ getTotalFleetAverageSpeed() }} km/h</strong></span>
+        <span class="stat-item">Avg Fuel: <strong>{{ getTotalFleetAverageFuel() }}%</strong></span>
+        <span class="stat-item">Avg Temp: <strong>{{ getTotalFleetAverageTemp() }}°C</strong></span>
       </div>
       <div class="view-row">
         <div class="view-info-group">

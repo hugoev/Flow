@@ -109,6 +109,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.vehicles.filter(v => v.status === 'offline').length;
   }
 
+  // Total fleet statistics (not just current page)
+  getTotalFleetOnlineCount(): number {
+    // For now, we'll estimate based on the current page ratio
+    // In a real implementation, you'd want to get this from the backend
+    if (this.vehicles.length === 0) return 0;
+    const currentPageOnlineRatio = this.getOnlineVehiclesCount() / this.vehicles.length;
+    return Math.round(this.totalVehicles * currentPageOnlineRatio);
+  }
+
+  getTotalFleetOfflineCount(): number {
+    return this.totalVehicles - this.getTotalFleetOnlineCount();
+  }
+
+  getTotalFleetAverageSpeed(): number {
+    // For now, use current page average as proxy for fleet average
+    // In a real implementation, you'd want to get this from the backend
+    return this.getAverageSpeed();
+  }
+
+  getTotalFleetAverageFuel(): number {
+    // For now, use current page average as proxy for fleet average
+    // In a real implementation, you'd want to get this from the backend
+    return this.getAverageFuelLevel();
+  }
+
+  getTotalFleetAverageTemp(): number {
+    // For now, use current page average as proxy for fleet average
+    // In a real implementation, you'd want to get this from the backend
+    return this.getAverageEngineTemp();
+  }
+
   getTotalDistance(): number {
     return this.vehicles.reduce((sum, vehicle) => sum + vehicle.totalDistance, 0);
   }
