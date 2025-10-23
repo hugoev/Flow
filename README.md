@@ -1,4 +1,4 @@
-# 🚗 Vehicle Telemetry System - Production IoT Architecture
+# 🚗 Flow - Real-Time Vehicle Fleet Monitoring & Analytics
 
 A **production-ready IoT platform** for ingesting, processing, and visualizing vehicle telemetry data at scale. Built with industry-standard technologies used by Tesla, BMW, and Uber.
 
@@ -6,7 +6,7 @@ A **production-ready IoT platform** for ingesting, processing, and visualizing v
 
 ![Vehicle Telemetry Dashboard](images/dashboard.png)
 
-_Real-time vehicle monitoring with live telemetry data, status tracking, and instant alerts_
+_Real-time vehicle fleet monitoring with paginated views, live telemetry data, status tracking, and instant alerts_
 
 ## 🏗️ **Architecture Overview**
 
@@ -36,6 +36,14 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 ```
 
 ## 🚀 **Key Features**
+
+### **Real-Time Fleet Monitoring**
+
+- **Paginated Dashboard:** 15 vehicles per page for optimal performance
+- **Live Updates:** Real-time SSE updates for visible vehicles only
+- **Vehicle Search:** Find specific vehicles by ID across entire fleet
+- **Fleet Statistics:** Total fleet health, online/offline counts, averages
+- **Instant Alerts:** Critical alerts for offline vehicles and system issues
 
 ### **Real-World IoT Communication**
 
@@ -83,10 +91,10 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 
 ### **Microservices**
 
-- **Data Ingestion Service:** MQTT → Kafka bridge + REST API
-- **Data Processing Service:** Kafka → Cassandra processing
-- **Telemetry Streaming Service:** Real-time SSE API
-- **Frontend Dashboard:** Angular 17 with live updates
+- **Data Ingestion Service:** MQTT → Kafka bridge + REST API + Simulation
+- **Data Processing Service:** Kafka → Cassandra processing + Pagination + Search
+- **Telemetry Streaming Service:** Real-time SSE API with concurrent updates
+- **Frontend Dashboard:** Angular 17 with paginated views, search, and alerts
 
 ### **Infrastructure**
 
@@ -103,7 +111,10 @@ _Real-time vehicle monitoring with live telemetry data, status tracking, and ins
 | **Kafka Throughput**  | 8,000+ records/sec | Message streaming           |
 | **Cassandra Writes**  | 5,000+ writes/sec  | Database operations         |
 | **API Response Time** | < 200ms            | Database queries            |
-| **Vehicle Fleet**     | 100+ vehicles      | Realistic fleet simulation  |
+| **Vehicle Fleet**     | 100 vehicles       | Realistic fleet simulation  |
+| **Pagination**        | 15 vehicles/page   | Optimized performance       |
+| **Search**            | Vehicle ID lookup  | Instant vehicle finding     |
+| **Alerts**            | Real-time alerts   | Offline vehicle detection   |
 | **Data Retention**    | Time-series        | Optimized storage           |
 | **Hot Reloading**     | Enabled            | Fast development cycle      |
 
@@ -177,7 +188,7 @@ open http://localhost:4200
 ### **5. Start Vehicle Simulation**
 
 ```bash
-# Start realistic 100+ vehicle simulation
+# Start realistic 100 vehicle simulation
 curl -X POST http://localhost:8081/api/simulation/start
 
 # Check simulation status
@@ -188,7 +199,7 @@ curl http://localhost:8081/api/simulation/status
 
 | Service                 | URL                   | Purpose                        |
 | ----------------------- | --------------------- | ------------------------------ |
-| **Frontend Dashboard**  | http://localhost:4200 | Real-time vehicle monitoring   |
+| **Frontend Dashboard**  | http://localhost:4200 | Real-time fleet monitoring     |
 | **Data Ingestion API**  | http://localhost:8081 | MQTT → Kafka bridge + REST API |
 | **Telemetry Streaming** | http://localhost:8083 | Real-time API                  |
 | **Data Processing**     | http://localhost:8082 | Kafka → Cassandra              |
@@ -483,6 +494,29 @@ curl http://localhost:8082/actuator/health
 - **Backup Strategy:** Automated backups
 - **Disaster Recovery:** Multi-region setup
 
+## 🎯 **Dashboard Features**
+
+### **Fleet Management**
+
+- **Paginated Views:** 15 vehicles per page for optimal performance
+- **Real-time Updates:** Live SSE updates for visible vehicles only
+- **Vehicle Search:** Find specific vehicles by ID across entire fleet
+- **Fleet Statistics:** Total fleet health, online/offline counts, averages
+
+### **Alert System**
+
+- **Offline Detection:** Automatic alerts for offline vehicles
+- **Critical Alerts:** High-priority notifications for system issues
+- **Alert Management:** Dismiss individual or all alerts
+- **Real-time Updates:** Alerts appear/disappear as conditions change
+
+### **Performance Optimizations**
+
+- **Concurrent Updates:** All vehicles update simultaneously
+- **Efficient SSE:** Only streams data for visible vehicles
+- **Smart Pagination:** Loads only necessary data
+- **Realistic Simulation:** Vehicles occasionally go offline (max 5 at a time)
+
 ## 🏆 **Production Readiness**
 
 - ✅ **MQTT Integration:** Real vehicle communication
@@ -490,7 +524,9 @@ curl http://localhost:8082/actuator/health
 - ✅ **Cassandra Storage:** Time-series optimized
 - ✅ **Redis Caching:** Performance optimization
 - ✅ **API Gateway:** Unified REST API
-- ✅ **Frontend Dashboard:** Real-time visualization
+- ✅ **Frontend Dashboard:** Real-time visualization with pagination
+- ✅ **Alert System:** Real-time offline vehicle detection
+- ✅ **Search Functionality:** Vehicle ID lookup across fleet
 - ✅ **Monitoring:** Comprehensive observability
 - ✅ **Security:** Enterprise-grade security
 - ✅ **Scalability:** Horizontal scaling ready
