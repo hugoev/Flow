@@ -32,6 +32,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   searchQuery: string = '';
   isSearching: boolean = false;
   
+  // Alert management
+  private alerts: Map<string, VehicleAlert> = new Map();
+  private dismissedAlerts: Set<string> = new Set();
+  
   private subscription: Subscription = new Subscription();
 
   constructor(private backendDataService: BackendDataService, private cdr: ChangeDetectorRef) {}
@@ -111,11 +115,34 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // Total fleet statistics (not just current page)
   getTotalFleetOnlineCount(): number {
-    // For now, we'll estimate based on the current page ratio
-    // In a real implementation, you'd want to get this from the backend
-    if (this.vehicles.length === 0) return 0;
-    const currentPageOnlineRatio = this.getOnlineVehiclesCount() / this.vehicles.length;
-    return Math.round(this.totalVehicles * currentPageOnlineRatio);
+    // Calculate offline vehicles across entire fleet (max 5)
+    const time = Date.now();
+    const timeSlot = Math.floor(time / 20000); // 20-second slots
+    const maxOffline = 5; // Max 5 vehicles offline across entire fleet
+    
+    // Generate all possible vehicle IDs (VH001 to VH100)
+    const allVehicleIds: string[] = [];
+    for (let i = 1; i <= 100; i++) {
+      allVehicleIds.push(`VH${i.toString().padStart(3, '0')}`);
+    }
+    
+    // Calculate which vehicles are offline across entire fleet
+    let offlineCount = 0;
+    for (let i = 0; i < maxOffline && i < allVehicleIds.length; i++) {
+      const rotationIndex = (timeSlot + i) % allVehicleIds.length;
+      const selectedVehicle = allVehicleIds[rotationIndex];
+      
+      // Add some randomness to make it more realistic
+      const vehicleHash = this.hashString(selectedVehicle);
+      const shouldBeOffline = (Math.sin(time / 15000 + vehicleHash) + 1) / 2;
+      
+      // 60-80% chance of being offline when selected
+      if (shouldBeOffline > 0.2) {
+        offlineCount++;
+      }
+    }
+    
+    return this.totalVehicles - offlineCount;
   }
 
   getTotalFleetOfflineCount(): number {
@@ -295,4 +322,154 @@ export class DashboardComponent implements OnInit, OnDestroy {
   getCurrentPageEnd(): number {
     return Math.min((this.currentPage + 1) * 15, this.totalVehicles);
   }
+
+  // Alert management methods
+  getActiveAlerts(): VehicleAlert[] {
+    // Generate simulated alerts based on vehicle conditions
+    this.updateAlerts();
+    const activeAlerts = Array.from(this.alerts.values())
+      .filter(alert => !this.dismissedAlerts.has(alert.vehicleId));
+    
+    // Sort alerts by severity (critical first) and timestamp (newest first)
+    activeAlerts.sort((a, b) => {
+      if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+      if (a.severity !== 'critical' && b.severity === 'critical') return 1;
+      return b.timestamp.getTime() - a.timestamp.getTime();
+    });
+    
+    // Show more alerts if there are critical offline vehicles
+    const criticalAlerts = activeAlerts.filter(alert => alert.severity === 'critical');
+    const maxAlerts = criticalAlerts.length > 0 ? 8 : 5; // Show up to 8 if there are critical alerts
+    
+    return activeAlerts.slice(0, maxAlerts);
+  }
+
+  private updateAlerts(): void {
+    // Get offline vehicles across entire fleet (not just current page)
+    const offlineVehicles = this.getFleetOfflineVehicles();
+    
+    // Create alerts for all offline vehicles in the fleet
+    offlineVehicles.forEach(vehicleId => {
+      this.alerts.set(vehicleId, {
+        vehicleId: vehicleId,
+        type: 'Vehicle Offline',
+        severity: 'critical',
+        timestamp: new Date()
+      });
+    });
+    
+    // Check current page vehicles for other alert conditions
+    this.vehicles.forEach(vehicle => {
+      // Skip offline vehicles (already handled above)
+      if (vehicle.status === 'offline') {
+        return;
+      }
+      
+      // Low fuel alerts (only for online vehicles)
+      if (vehicle.fuelLevel < 20) {
+        this.alerts.set(vehicle.vehicleId, {
+          vehicleId: vehicle.vehicleId,
+          type: 'Low Fuel',
+          severity: vehicle.fuelLevel < 10 ? 'critical' : 'warning',
+          timestamp: new Date()
+        });
+      }
+      // High temperature alerts (only for online vehicles)
+      else if (vehicle.engineTemp > 95) {
+        this.alerts.set(vehicle.vehicleId, {
+          vehicleId: vehicle.vehicleId,
+          type: 'High Temperature',
+          severity: vehicle.engineTemp > 100 ? 'critical' : 'warning',
+          timestamp: new Date()
+        });
+      }
+      // Remove alert only if vehicle is online and all conditions are resolved
+      else if (vehicle.status === 'online') {
+        this.alerts.delete(vehicle.vehicleId);
+      }
+    });
+    
+    // Clean up alerts for vehicles that are no longer offline
+    const currentOfflineVehicles = new Set(offlineVehicles);
+    this.alerts.forEach((alert, vehicleId) => {
+      if (alert.type === 'Vehicle Offline' && !currentOfflineVehicles.has(vehicleId)) {
+        this.alerts.delete(vehicleId);
+      }
+    });
+  }
+
+  /**
+   * Get offline vehicles across entire fleet (not just current page)
+   */
+  private getFleetOfflineVehicles(): string[] {
+    const time = Date.now();
+    const timeSlot = Math.floor(time / 20000); // 20-second slots
+    const maxOffline = 5; // Max 5 vehicles offline across entire fleet
+    
+    // Generate all possible vehicle IDs (VH001 to VH100)
+    const allVehicleIds: string[] = [];
+    for (let i = 1; i <= 100; i++) {
+      allVehicleIds.push(`VH${i.toString().padStart(3, '0')}`);
+    }
+    
+    // Calculate which vehicles are offline across entire fleet
+    const offlineVehicles: string[] = [];
+    for (let i = 0; i < maxOffline && i < allVehicleIds.length; i++) {
+      const rotationIndex = (timeSlot + i) % allVehicleIds.length;
+      const selectedVehicle = allVehicleIds[rotationIndex];
+      
+      // Add some randomness to make it more realistic
+      const vehicleHash = this.hashString(selectedVehicle);
+      const shouldBeOffline = (Math.sin(time / 15000 + vehicleHash) + 1) / 2;
+      
+      // 60-80% chance of being offline when selected
+      if (shouldBeOffline > 0.2) {
+        offlineVehicles.push(selectedVehicle);
+      }
+    }
+    
+    return offlineVehicles;
+  }
+
+  dismissAlert(vehicleId: string): void {
+    this.dismissedAlerts.add(vehicleId);
+    this.cdr.detectChanges();
+  }
+
+  dismissAllAlerts(): void {
+    this.getActiveAlerts().forEach(alert => {
+      this.dismissedAlerts.add(alert.vehicleId);
+    });
+    this.cdr.detectChanges();
+  }
+
+  getAlertTime(timestamp: Date): string {
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - timestamp.getTime()) / 1000);
+    
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  }
+
+  /**
+   * Simple hash function for deterministic "random" behavior
+   */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  }
+}
+
+// Alert interface
+interface VehicleAlert {
+  vehicleId: string;
+  type: string;
+  severity: 'warning' | 'critical';
+  timestamp: Date;
 }

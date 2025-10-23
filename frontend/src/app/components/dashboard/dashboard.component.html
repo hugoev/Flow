@@ -125,6 +125,23 @@
       </div>
     </div>
 
+    <!-- Active Alerts Banner -->
+    <div class="alerts-banner" *ngIf="getActiveAlerts().length > 0">
+      <div class="alerts-header">
+        <span class="alerts-icon">⚠️</span>
+        <span class="alerts-title">Active Alerts ({{ getActiveAlerts().length }})</span>
+        <button class="btn-dismiss-all" (click)="dismissAllAlerts()">Dismiss All</button>
+      </div>
+      <div class="alerts-list">
+        <div *ngFor="let alert of getActiveAlerts()" class="alert-item" [class.alert-critical]="alert.severity === 'critical'">
+          <span class="alert-vehicle">{{ alert.vehicleId }}</span>
+          <span class="alert-type">{{ alert.type }}</span>
+          <span class="alert-time">{{ getAlertTime(alert.timestamp) }}</span>
+          <button class="btn-dismiss" (click)="dismissAlert(alert.vehicleId)">×</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Search Results Info -->
     <div class="search-info" *ngIf="isSearching">
       <span>Search Results: {{ vehicles.length }} vehicles found for "{{ searchQuery }}"</span>

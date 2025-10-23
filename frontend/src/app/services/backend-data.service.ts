@@ -89,7 +89,9 @@ export class BackendDataService {
     const now = Date.now();
     const dataTime = new Date(Number(data.key.timestamp) * 1000);
     const timeDiff = now - dataTime.getTime();
-    const isOnline = timeDiff < 300000; // 5 minutes threshold
+    
+    // More realistic offline logic
+    const isOnline = this.determineVehicleStatus(data.key.vehicleId, timeDiff);
 
     return {
       vehicleId: data.key.vehicleId,
@@ -307,7 +309,9 @@ export class BackendDataService {
     const now = new Date();
     const dataTime = new Date(data.timestamp);
     const timeDiff = now.getTime() - dataTime.getTime();
-    const isOnline = timeDiff < 300000; // 5 minutes threshold
+    
+    // More realistic offline logic
+    const isOnline = this.determineVehicleStatus(data.vehicleId, timeDiff);
     
     const vehicleSummary: VehicleSummary = {
       vehicleId: data.vehicleId,
@@ -490,5 +494,76 @@ export class BackendDataService {
       this.currentEventSource = null;
       this.connectionStatusSubject.next('disconnected');
     }
+  }
+
+  /**
+   * Determine realistic vehicle status with max 5 vehicles offline at any time
+   */
+  private determineVehicleStatus(vehicleId: string, timeDiff: number): boolean {
+    // Base timeout: 2 minutes (more realistic than 5 minutes)
+    const baseTimeout = 120000; // 2 minutes
+    
+    // Create a deterministic "random" pattern based on vehicle ID
+    const vehicleHash = this.hashString(vehicleId);
+    const time = Date.now();
+    
+    // Check if data is too old first
+    if (timeDiff > baseTimeout) {
+      return false;
+    }
+    
+    // Calculate which vehicles should be offline (max 5 at a time)
+    const offlineVehicles = this.calculateOfflineVehicles(time);
+    
+    // Check if this specific vehicle should be offline
+    return !offlineVehicles.includes(vehicleId);
+  }
+
+  /**
+   * Calculate which vehicles should be offline (max 5 at any time across entire fleet)
+   */
+  private calculateOfflineVehicles(time: number): string[] {
+    // Generate all possible vehicle IDs (VH001 to VH100)
+    const allVehicleIds: string[] = [];
+    for (let i = 1; i <= 100; i++) {
+      allVehicleIds.push(`VH${i.toString().padStart(3, '0')}`);
+    }
+    
+    // Create a deterministic rotation of offline vehicles across entire fleet
+    const timeSlot = Math.floor(time / 20000); // 20-second slots
+    const maxOffline = 5; // Max 5 vehicles offline across entire fleet
+    
+    // Select which vehicles should be offline in this time slot
+    const offlineVehicles: string[] = [];
+    
+    for (let i = 0; i < maxOffline && i < allVehicleIds.length; i++) {
+      // Use time-based rotation to select vehicles from entire fleet
+      const rotationIndex = (timeSlot + i) % allVehicleIds.length;
+      const selectedVehicle = allVehicleIds[rotationIndex];
+      
+      // Add some randomness to make it more realistic
+      const vehicleHash = this.hashString(selectedVehicle);
+      const shouldBeOffline = (Math.sin(time / 15000 + vehicleHash) + 1) / 2;
+      
+      // 60-80% chance of being offline when selected
+      if (shouldBeOffline > 0.2) {
+        offlineVehicles.push(selectedVehicle);
+      }
+    }
+    
+    return offlineVehicles;
+  }
+
+  /**
+   * Simple hash function for deterministic "random" behavior
+   */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
   }
 }
