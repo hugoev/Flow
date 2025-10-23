@@ -1,6 +1,7 @@
 package com.vehicletelemetry.streaming.service;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,78 +24,33 @@ import reactor.core.publisher.Flux;
 public class TelemetryStreamingService {
 
     private static final Logger logger = LoggerFactory.getLogger(TelemetryStreamingService.class);
-    private static final Duration ALL_VEHICLES_STREAM_INTERVAL = Duration.ofSeconds(3);
-    private static final Duration SINGLE_VEHICLE_STREAM_INTERVAL = Duration.ofSeconds(5);
+    private static final Duration STREAM_INTERVAL = Duration.ofSeconds(1);
 
     private final TelemetryDataGenerator telemetryDataGenerator;
-    private final VehicleIdGenerator vehicleIdGenerator;
 
-    public TelemetryStreamingService(TelemetryDataGenerator telemetryDataGenerator,
-            VehicleIdGenerator vehicleIdGenerator) {
+    public TelemetryStreamingService(TelemetryDataGenerator telemetryDataGenerator) {
         this.telemetryDataGenerator = telemetryDataGenerator;
-        this.vehicleIdGenerator = vehicleIdGenerator;
     }
 
     /**
-     * Creates a real-time stream for all vehicles in the fleet
-     * 
-     * @return Flux stream of telemetry data from all vehicles
+     * SSE stream for specific vehicles with concurrent updates (ESSENTIAL METHOD)
      */
-    public Flux<TelemetryData> createAllVehiclesStream() {
-        logger.info("Creating real-time telemetry stream for all vehicles in fleet");
+    public Flux<TelemetryData> createSpecificVehiclesStream(List<String> vehicleIds) {
+        if (vehicleIds == null || vehicleIds.isEmpty()) {
+            return Flux.empty();
+        }
 
-        return Flux.interval(ALL_VEHICLES_STREAM_INTERVAL)
-                .map(intervalTick -> telemetryDataGenerator.generateRandomVehicleTelemetry())
-                .doOnNext(telemetryData -> logTelemetryData(telemetryData))
-                .doOnSubscribe(subscription -> logger.info("Client connected to all vehicles telemetry stream"))
-                .doOnCancel(() -> logger.info("Client disconnected from all vehicles telemetry stream"))
-                .onErrorResume(throwable -> handleStreamError("all vehicles", throwable));
+        // Create concurrent streams for all vehicles
+        return Flux.interval(STREAM_INTERVAL)
+                .flatMap(intervalTick -> {
+                    // Generate telemetry for ALL vehicles concurrently
+                    return Flux.fromIterable(vehicleIds)
+                            .map(vehicleId -> telemetryDataGenerator.generateTelemetryForVehicle(vehicleId));
+                })
+                .onErrorResume(throwable -> {
+                    logger.error("Stream error: {}", throwable.getMessage());
+                    return Flux.empty();
+                });
     }
 
-    /**
-     * Creates a real-time stream for a specific vehicle
-     * 
-     * @param vehicleId The specific vehicle to stream data for
-     * @return Flux stream of telemetry data for the specified vehicle
-     */
-    public Flux<TelemetryData> createSingleVehicleStream(String vehicleId) {
-        logger.info("Creating real-time telemetry stream for vehicle: {}", vehicleId);
-
-        return Flux.interval(SINGLE_VEHICLE_STREAM_INTERVAL)
-                .map(intervalTick -> telemetryDataGenerator.generateTelemetryForVehicle(vehicleId))
-                .doOnNext(telemetryData -> logTelemetryData(telemetryData))
-                .doOnSubscribe(subscription -> logger.info("Client connected to vehicle stream: {}", vehicleId))
-                .doOnCancel(() -> logger.info("Client disconnected from vehicle stream: {}", vehicleId))
-                .onErrorResume(throwable -> handleStreamError("vehicle " + vehicleId, throwable));
-    }
-
-    /**
-     * Gets the total number of vehicles in the fleet
-     * 
-     * @return Total vehicle count
-     */
-    public int getTotalVehicleCount() {
-        return vehicleIdGenerator.getTotalVehicleCount();
-    }
-
-    /**
-     * Logs telemetry data at debug level
-     * 
-     * @param telemetryData The telemetry data to log
-     */
-    private void logTelemetryData(TelemetryData telemetryData) {
-        logger.debug("Streaming telemetry data: {}", telemetryData);
-    }
-
-    /**
-     * Handles stream errors with proper logging and graceful recovery
-     * 
-     * @param streamDescription Description of the stream that encountered an error
-     * @param throwable         The error that occurred
-     * @return Empty flux to gracefully handle the error
-     */
-    private Flux<TelemetryData> handleStreamError(String streamDescription, Throwable throwable) {
-        logger.error("Error in {} telemetry stream: {}", streamDescription, throwable.getMessage(), throwable);
-        return Flux.empty();
-    }
 }

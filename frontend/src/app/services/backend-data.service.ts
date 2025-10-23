@@ -14,6 +14,21 @@ export interface BackendTelemetryData {
   fuelLevel: number;
   engineTemp: number;
   tirePressure: number;
+  timestamp: string;
+  vehicleId: string;
+  totalDistance?: number; // Optional since it might not be in all records
+}
+
+export interface StreamingTelemetryData {
+  vehicleId: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  speedKmh: number;
+  fuelLevelPercentage: number;
+  engineTemperatureCelsius: number;
+  tirePressurePsi: number;
+  totalDistanceKm: number;
 }
 
 export interface VehicleSummary {
@@ -34,19 +49,60 @@ export interface VehicleSummary {
 })
 export class BackendDataService {
   private processingApiUrl = 'http://localhost:8082/api/processing';
-  private ingestionApiUrl = 'http://localhost:8081/api';
+  private ingestionApiUrl = 'http://localhost:8081';
   private streamingApiUrl = 'http://localhost:8083/api/telemetry';
   
+  // Essential state only
   private vehiclesSubject = new BehaviorSubject<VehicleSummary[]>([]);
-  private telemetrySubject = new BehaviorSubject<BackendTelemetryData[]>([]);
+  private connectionStatusSubject = new BehaviorSubject<'connected' | 'disconnected' | 'error'>('disconnected');
+  private loadingSubject = new BehaviorSubject<boolean>(true);
   
+  // Simple pagination state
+  private currentPage = 0;
+  private totalVehicles = 0;
+  private isSearching = false;
+  
+  // SSE connection management
+  private currentEventSource: EventSource | null = null;
+  
+  // Essential observables only
   public vehicles$ = this.vehiclesSubject.asObservable();
-  public telemetryData$ = this.telemetrySubject.asObservable();
+  public connectionStatus$ = this.connectionStatusSubject.asObservable();
+  public loading$ = this.loadingSubject.asObservable();
 
   constructor(private http: HttpClient) {
-    console.log('BackendDataService constructor called');
-    // Start polling for real-time updates
-    this.startPolling();
+    // Load total vehicle count and start with first page
+    this.loadTotalVehicleCount();
+    this.loadPage(0); // Use the new pagination method
+  }
+
+  // Simple getters for pagination state
+  getCurrentPage(): number { return this.currentPage; }
+  getTotalVehicles(): number { return this.totalVehicles; }
+  getTotalPages(): number { return Math.ceil(this.totalVehicles / 15); }
+  getIsSearching(): boolean { return this.isSearching; }
+
+  /**
+   * Transform backend telemetry data to VehicleSummary format
+   */
+  private transformBackendDataToVehicleSummary(data: BackendTelemetryData): VehicleSummary {
+    const now = Date.now();
+    const dataTime = new Date(Number(data.key.timestamp) * 1000);
+    const timeDiff = now - dataTime.getTime();
+    const isOnline = timeDiff < 300000; // 5 minutes threshold
+
+    return {
+      vehicleId: data.key.vehicleId,
+      lastUpdate: dataTime,
+      currentSpeed: data.speed,
+      fuelLevel: data.fuelLevel,
+      engineTemp: data.engineTemp,
+      status: isOnline ? 'online' : 'offline',
+      totalDistance: data.totalDistance || 0, // Default to 0 if not available
+      latitude: data.latitude,
+      longitude: data.longitude,
+      tirePressure: data.tirePressure
+    };
   }
 
   /**
@@ -146,10 +202,6 @@ export class BackendDataService {
 
     return this.http.get<BackendTelemetryData[]>(url)
       .pipe(
-        map(data => {
-          this.telemetrySubject.next(data);
-          return data;
-        }),
         catchError(error => {
           console.error('Error fetching telemetry data:', error);
           return of([]);
@@ -211,18 +263,80 @@ export class BackendDataService {
   }
 
   /**
-   * Start polling for real-time updates
+   * Connect to real-time SSE stream for specific vehicles (ESSENTIAL METHOD)
    */
-  private startPolling(): void {
-    console.log('Starting polling for vehicle data...');
-    // Poll every 10 seconds for vehicle summaries
-    setInterval(() => {
-      console.log('Polling for vehicle data...');
-      this.getAllVehicles().subscribe({
-        next: (vehicles) => console.log('Received vehicles:', vehicles.length),
-        error: (error) => console.error('Error polling vehicles:', error)
-      });
-    }, 10000);
+  private connectToRealTimeStream(vehicleIds: string[]): void {
+    if (!vehicleIds || vehicleIds.length === 0) {
+      console.warn('⚠ No vehicle IDs provided for streaming');
+      return;
+    }
+    
+    // Create query string for vehicle IDs
+    const vehicleIdsParam = vehicleIds.map(id => `vehicleIds=${encodeURIComponent(id)}`).join('&');
+    const streamUrl = `${this.streamingApiUrl}/stream/vehicles?${vehicleIdsParam}`;
+    
+    console.log('✓ Connecting SSE to', vehicleIds.length, 'vehicles:', vehicleIds.slice(0, 3).join(', '), '...');
+    this.currentEventSource = new EventSource(streamUrl);
+    
+    this.currentEventSource.onopen = () => {
+      this.connectionStatusSubject.next('connected');
+      console.log('✓ SSE connected to', vehicleIds.length, 'vehicles');
+    };
+    
+    this.currentEventSource.onmessage = (event) => {
+      try {
+        const data: StreamingTelemetryData = JSON.parse(event.data);
+        console.log('📡 SSE received data for vehicle:', data.vehicleId, 'speed:', data.speedKmh);
+        this.transformAndUpdateVehicles(data);
+      } catch (error) {
+        console.error('✗ SSE parse error:', error);
+        this.connectionStatusSubject.next('error');
+      }
+    };
+    
+    this.currentEventSource.onerror = (error) => {
+      console.error('✗ SSE error:', error);
+      this.connectionStatusSubject.next('error');
+    };
+  }
+
+  /**
+   * Transform streaming data to VehicleSummary and update vehicles (ESSENTIAL METHOD)
+   */
+  private transformAndUpdateVehicles(data: StreamingTelemetryData): void {
+    const now = new Date();
+    const dataTime = new Date(data.timestamp);
+    const timeDiff = now.getTime() - dataTime.getTime();
+    const isOnline = timeDiff < 300000; // 5 minutes threshold
+    
+    const vehicleSummary: VehicleSummary = {
+      vehicleId: data.vehicleId,
+      lastUpdate: dataTime,
+      currentSpeed: data.speedKmh,
+      fuelLevel: data.fuelLevelPercentage,
+      engineTemp: data.engineTemperatureCelsius,
+      status: isOnline ? 'online' : 'offline',
+      totalDistance: data.totalDistanceKm,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      tirePressure: data.tirePressurePsi
+    };
+    
+    // Update existing vehicle in current page
+    const currentVehicles = this.vehiclesSubject.value;
+    const existingIndex = currentVehicles.findIndex(v => v.vehicleId === data.vehicleId);
+    
+    console.log('🔄 Updating vehicle:', data.vehicleId, 'found at index:', existingIndex, 'current vehicles:', currentVehicles.length);
+    
+    if (existingIndex >= 0) {
+      // Update existing vehicle (this should always be the case for paginated view)
+      currentVehicles[existingIndex] = vehicleSummary;
+      console.log('✅ Updated vehicle at index', existingIndex, 'new speed:', vehicleSummary.currentSpeed);
+      this.vehiclesSubject.next([...currentVehicles]);
+    } else {
+      console.log('⚠️ Vehicle', data.vehicleId, 'not found in current page, ignoring update');
+    }
+    // Ignore if vehicle not in current page
   }
 
   /**
@@ -250,5 +364,131 @@ export class BackendDataService {
         eventSource.close();
       };
     });
+  }
+
+  /**
+   * Load total vehicle count for pagination
+   */
+  private loadTotalVehicleCount(): void {
+    this.http.get<number>(`${this.processingApiUrl}/vehicles/count`).subscribe({
+      next: (count) => {
+        console.log('Total vehicle count:', count);
+        this.totalVehicles = count;
+      },
+      error: (error) => {
+        console.error('Error loading total vehicle count:', error);
+        this.totalVehicles = 0;
+      }
+    });
+  }
+
+  /**
+   * Load a specific page of vehicles (ESSENTIAL METHOD)
+   */
+  loadPage(pageNumber: number): void {
+    console.log('Loading page:', pageNumber, 'with 15 vehicles');
+    this.currentPage = pageNumber;
+    this.isSearching = false;
+    this.loadingSubject.next(true);
+    
+    this.http.get<BackendTelemetryData[]>(`${this.processingApiUrl}/vehicles/all/latest?page=${pageNumber}&size=15`).subscribe({
+      next: (data) => {
+        console.log('✓ Loaded page', pageNumber, ':', data.length, 'vehicles');
+        const vehicles = data.map(item => this.transformBackendDataToVehicleSummary(item));
+        this.vehiclesSubject.next(vehicles);
+        this.loadingSubject.next(false);
+        
+        // Close old SSE and connect to ONLY these 15 vehicles
+        this.closeCurrentSSEConnection();
+        this.connectToRealTimeStream(vehicles.map(v => v.vehicleId));
+      },
+      error: (error) => {
+        console.error('✗ Error loading page:', error);
+        this.vehiclesSubject.next([]);
+        this.loadingSubject.next(false);
+      }
+    });
+  }
+
+  /**
+   * Search for vehicles by ID pattern (ESSENTIAL METHOD)
+   */
+  searchVehicles(vehicleId: string): void {
+    if (!vehicleId.trim()) {
+      this.clearSearch();
+      return;
+    }
+
+    console.log('Searching for vehicles:', vehicleId);
+    this.isSearching = true;
+    this.loadingSubject.next(true);
+    
+    this.http.get<BackendTelemetryData[]>(`${this.processingApiUrl}/vehicles/search?vehicleId=${encodeURIComponent(vehicleId)}`).subscribe({
+      next: (data) => {
+        console.log('✓ Search found:', data.length, 'vehicles');
+        const vehicles = data.map(item => this.transformBackendDataToVehicleSummary(item));
+        this.vehiclesSubject.next(vehicles);
+        this.loadingSubject.next(false);
+        
+        // Close old SSE and connect to ONLY search results
+        this.closeCurrentSSEConnection();
+        this.connectToRealTimeStream(vehicles.map(v => v.vehicleId));
+      },
+      error: (error) => {
+        console.error('✗ Search error:', error);
+        this.vehiclesSubject.next([]);
+        this.loadingSubject.next(false);
+      }
+    });
+  }
+
+  /**
+   * Clear search and return to paginated view
+   */
+  clearSearch(): void {
+    console.log('Clearing search');
+    this.isSearching = false;
+    this.loadPage(this.currentPage);
+  }
+
+  /**
+   * Navigate to next page (ESSENTIAL METHOD)
+   */
+  nextPage(): void {
+    const totalPages = this.getTotalPages();
+    if (this.currentPage < totalPages - 1) {
+      this.loadPage(this.currentPage + 1);
+    }
+  }
+
+  /**
+   * Navigate to previous page (ESSENTIAL METHOD)
+   */
+  previousPage(): void {
+    if (this.currentPage > 0) {
+      this.loadPage(this.currentPage - 1);
+    }
+  }
+
+  /**
+   * Navigate to specific page
+   */
+  goToPage(page: number): void {
+    const totalPages = this.getTotalPages();
+    if (page >= 0 && page < totalPages) {
+      this.loadPage(page);
+    }
+  }
+
+  /**
+   * Close current SSE connection (ESSENTIAL METHOD)
+   */
+  private closeCurrentSSEConnection(): void {
+    if (this.currentEventSource) {
+      console.log('✓ Closing SSE connection');
+      this.currentEventSource.close();
+      this.currentEventSource = null;
+      this.connectionStatusSubject.next('disconnected');
+    }
   }
 }

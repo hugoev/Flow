@@ -220,7 +220,7 @@ services:
       - vehicle-telemetry-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/api/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8083/api/telemetry/health"]
       interval: 10s
       timeout: 5s
       retries: 3

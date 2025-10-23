@@ -129,6 +129,7 @@ class TelemetryIngestionServiceTest {
                 65.5,
                 85.2,
                 90.5,
-                32.0);
+                32.0,
+                1500.0);
     }
 }

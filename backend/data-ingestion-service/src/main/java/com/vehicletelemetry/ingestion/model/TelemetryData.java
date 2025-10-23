@@ -172,6 +172,7 @@ public class TelemetryData {
                 ", fuelLevel=" + fuelLevel +
                 ", engineTemp=" + engineTemp +
                 ", tirePressure=" + tirePressure +
+                ", totalDistance=" + totalDistance +
                 '}';
     }
 }

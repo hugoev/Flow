@@ -1,5 +1,5 @@
-import { CommonModule, DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { CommonModule, DatePipe, TitleCasePipe } from '@angular/common';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { BackendDataService, VehicleSummary } from '../../services/backend-data.service';
 
@@ -9,13 +9,13 @@ import { BackendDataService, VehicleSummary } from '../../services/backend-data.
   imports: [
     CommonModule,
     DatePipe,
-    DecimalPipe,
     TitleCasePipe
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
+  // Essential display state
   vehicles: VehicleSummary[] = [];
   loading = true;
   error: string | null = null;
@@ -23,14 +23,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
   simulationRunning = false;
   simulationStatus = 'Unknown';
   simulationInfo = '';
+  connectionStatus: string = 'disconnected';
+  
+  // Simple pagination state (synced from service)
+  currentPage: number = 0;
+  totalVehicles: number = 0;
+  totalPages: number = 0;
+  searchQuery: string = '';
+  isSearching: boolean = false;
+  
   private subscription: Subscription = new Subscription();
 
-  constructor(private backendDataService: BackendDataService) {
-    console.log('DashboardComponent constructor called');
-  }
+  constructor(private backendDataService: BackendDataService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     this.loadVehicles();
+    this.syncPaginationState();
+    this.subscribeToConnectionStatus();
     this.checkSimulationStatus();
     this.getSimulationInfo();
   }
@@ -40,19 +49,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   loadVehicles(): void {
+    // Subscribe to vehicles (ESSENTIAL)
     this.subscription.add(
-      this.backendDataService.vehicles$.subscribe({
-        next: (vehicles) => {
-          this.vehicles = vehicles;
-          this.loading = false;
-          this.error = null;
-          this.lastUpdate = new Date();
-        },
-        error: (error) => {
-          console.error('Error loading vehicles:', error);
-          this.error = 'Failed to load vehicle data';
-          this.loading = false;
-        }
+      this.backendDataService.vehicles$.subscribe(vehicles => {
+        console.log('🔄 Dashboard received vehicles update:', vehicles.length, 'vehicles');
+        this.vehicles = vehicles;
+        this.lastUpdate = new Date();
+        this.cdr.detectChanges(); // Force change detection
+      })
+    );
+    
+    // Subscribe to loading state (ESSENTIAL)
+    this.subscription.add(
+      this.backendDataService.loading$.subscribe(loading => {
+        this.loading = loading;
+        this.cdr.detectChanges(); // Force change detection
       })
     );
   }
@@ -169,5 +180,84 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.simulationInfo = 'Unknown';
       }
     });
+  }
+
+  subscribeToConnectionStatus(): void {
+    this.subscription.add(
+      this.backendDataService.connectionStatus$.subscribe(status => {
+        this.connectionStatus = status;
+      })
+    );
+  }
+
+  syncPaginationState(): void {
+    // Sync pagination state every time vehicles update (SIMPLE)
+    this.subscription.add(
+      this.backendDataService.vehicles$.subscribe(() => {
+        this.currentPage = this.backendDataService.getCurrentPage();
+        this.totalVehicles = this.backendDataService.getTotalVehicles();
+        this.totalPages = this.backendDataService.getTotalPages();
+        this.isSearching = this.backendDataService.getIsSearching();
+      })
+    );
+  }
+
+  // Pagination methods
+  nextPage(): void {
+    this.backendDataService.nextPage();
+  }
+
+  previousPage(): void {
+    this.backendDataService.previousPage();
+  }
+
+  goToPage(page: number): void {
+    this.backendDataService.goToPage(page);
+  }
+
+  // Search methods
+  onSearch(): void {
+    if (this.searchQuery.trim()) {
+      this.backendDataService.searchVehicles(this.searchQuery);
+    } else {
+      this.clearSearch();
+    }
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.backendDataService.clearSearch();
+  }
+
+  onSearchInputChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.searchQuery = target.value;
+  }
+
+  onSearchKeyPress(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      this.onSearch();
+    }
+  }
+
+  // Utility methods for pagination UI
+  getPageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxVisiblePages = 5;
+    const startPage = Math.max(0, this.currentPage - Math.floor(maxVisiblePages / 2));
+    const endPage = Math.min(this.totalPages - 1, startPage + maxVisiblePages - 1);
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  canGoToPreviousPage(): boolean {
+    return this.currentPage > 0;
+  }
+
+  canGoToNextPage(): boolean {
+    return this.currentPage < this.totalPages - 1;
   }
 }

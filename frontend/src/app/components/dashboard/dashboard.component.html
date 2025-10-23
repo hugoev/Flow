@@ -12,6 +12,10 @@
             {{ simulationStatus }}
           </span>
         </div>
+        <div class="connection-status">
+          <span class="status-indicator" [class.connected]="connectionStatus === 'connected'" [class.error]="connectionStatus === 'error'"></span>
+          <span>{{ connectionStatus === 'connected' ? 'Live' : connectionStatus === 'error' ? 'Error' : 'Connecting...' }}</span>
+        </div>
         <div class="buttons">
           <button class="btn btn-primary" (click)="startSimulation()" [disabled]="simulationRunning || loading">
             Start
@@ -37,7 +41,7 @@
   <!-- Loading State -->
   <div *ngIf="loading" class="loading">
     <div class="spinner"></div>
-    <p>Loading vehicle data...</p>
+    <p>Loading vehicles...</p>
   </div>
 
   <!-- Empty State with Layout Preview -->
@@ -131,6 +135,38 @@
       </div>
     </div>
 
+    <!-- Search and Pagination Controls -->
+    <div class="controls-section">
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-input-group">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Search by Vehicle ID..." 
+            [value]="searchQuery"
+            (input)="onSearchInputChange($event)"
+            (keypress)="onSearchKeyPress($event)"
+          />
+          <button class="btn btn-primary search-btn" (click)="onSearch()">
+            Search
+          </button>
+          <button 
+            *ngIf="isSearching" 
+            class="btn btn-secondary clear-btn" 
+            (click)="clearSearch()"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Results Info -->
+      <div class="search-info" *ngIf="isSearching">
+        <span>Search Results: {{ vehicles.length }} vehicles found for "{{ searchQuery }}"</span>
+      </div>
+    </div>
+
     <!-- Vehicle Table -->
     <div class="table-wrapper">
       <table class="vehicle-table">
@@ -159,6 +195,42 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Bottom Pagination Info and Controls -->
+    <div class="pagination-container bottom-pagination" *ngIf="!isSearching">
+      <div class="pagination-info">
+        <span>Page {{ currentPage + 1 }} of {{ totalPages }} (Total: {{ totalVehicles }} vehicles)</span>
+      </div>
+      
+      <div class="pagination-controls">
+        <button 
+          class="btn btn-secondary pagination-btn" 
+          (click)="previousPage()" 
+          [disabled]="!canGoToPreviousPage()"
+        >
+          Previous
+        </button>
+        
+        <div class="page-numbers">
+          <button 
+            *ngFor="let page of getPageNumbers()" 
+            class="btn page-number-btn" 
+            [class.active]="page === currentPage"
+            (click)="goToPage(page)"
+          >
+            {{ page + 1 }}
+          </button>
+        </div>
+        
+        <button 
+          class="btn btn-secondary pagination-btn" 
+          (click)="nextPage()" 
+          [disabled]="!canGoToNextPage()"
+        >
+          Next
+        </button>
+      </div>
     </div>
   </div>
 </div>

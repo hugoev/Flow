@@ -1,11 +1,12 @@
 package com.vehicletelemetry.streaming.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.List;
+
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.vehicletelemetry.streaming.model.TelemetryData;
@@ -25,9 +26,8 @@ import reactor.core.publisher.Flux;
  */
 @RestController
 @RequestMapping("/api/telemetry")
+@CrossOrigin(origins = "http://localhost:4200")
 public class TelemetryStreamingController {
-
-    private static final Logger logger = LoggerFactory.getLogger(TelemetryStreamingController.class);
 
     private final TelemetryStreamingService telemetryStreamingService;
 
@@ -36,69 +36,18 @@ public class TelemetryStreamingController {
     }
 
     /**
-     * Provides real-time telemetry stream for all vehicles in the fleet
-     * 
-     * @return Server-Sent Events stream of telemetry data from all vehicles
+     * SSE stream for specific vehicles (ESSENTIAL ENDPOINT)
      */
-    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<TelemetryData> streamAllVehiclesTelemetry() {
-        logger.info("Received request for real-time telemetry stream from all vehicles");
-        return telemetryStreamingService.createAllVehiclesStream();
+    @GetMapping(value = "/stream/vehicles", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<TelemetryData> streamSpecificVehiclesTelemetry(@RequestParam List<String> vehicleIds) {
+        return telemetryStreamingService.createSpecificVehiclesStream(vehicleIds);
     }
 
     /**
-     * Provides real-time telemetry stream for a specific vehicle
-     * 
-     * @param vehicleId The specific vehicle to stream data for
-     * @return Server-Sent Events stream of telemetry data for the specified vehicle
-     */
-    @GetMapping(value = "/vehicles/{vehicleId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<TelemetryData> streamSingleVehicleTelemetry(@PathVariable String vehicleId) {
-        logger.info("Received request for real-time telemetry stream from vehicle: {}", vehicleId);
-        return telemetryStreamingService.createSingleVehicleStream(vehicleId);
-    }
-
-    /**
-     * Health check endpoint for the telemetry streaming service
-     * 
-     * @return Health status message
+     * Health check (ESSENTIAL)
      */
     @GetMapping("/health")
     public String getServiceHealth() {
-        logger.debug("Health check requested for telemetry streaming service");
-        return "Telemetry Streaming Service is healthy and operational";
-    }
-
-    /**
-     * Gets information about the vehicle fleet
-     * 
-     * @return Fleet information including total vehicle count
-     */
-    @GetMapping("/fleet/info")
-    public FleetInfo getFleetInfo() {
-        logger.debug("Fleet information requested");
-        int totalVehicleCount = telemetryStreamingService.getTotalVehicleCount();
-        return new FleetInfo(totalVehicleCount);
-    }
-
-    /**
-     * FleetInfo - Value object for fleet information
-     */
-    public static class FleetInfo {
-        private final int totalVehicleCount;
-        private final String serviceStatus;
-
-        public FleetInfo(int totalVehicleCount) {
-            this.totalVehicleCount = totalVehicleCount;
-            this.serviceStatus = "operational";
-        }
-
-        public int getTotalVehicleCount() {
-            return totalVehicleCount;
-        }
-
-        public String getServiceStatus() {
-            return serviceStatus;
-        }
+        return "UP";
     }
 }

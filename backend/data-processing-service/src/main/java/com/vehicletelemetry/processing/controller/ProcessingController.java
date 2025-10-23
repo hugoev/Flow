@@ -1,6 +1,5 @@
 package com.vehicletelemetry.processing.controller;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -8,10 +7,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +26,7 @@ import com.vehicletelemetry.processing.repository.TelemetryDataRepository;
  */
 @RestController
 @RequestMapping("/processing")
+@CrossOrigin(origins = "http://localhost:4200")
 public class ProcessingController {
 
     private static final Logger logger = LoggerFactory.getLogger(ProcessingController.class);
@@ -36,119 +35,103 @@ public class ProcessingController {
     private TelemetryDataRepository telemetryRepository;
 
     /**
-     * Get all vehicle IDs that have telemetry data
-     */
-    @GetMapping("/vehicles")
-    public ResponseEntity<List<String>> getAllVehicleIds() {
-        try {
-            logger.info("Fetching all vehicle IDs");
-
-            // Get all records and extract unique vehicle IDs
-            // Note: In production, this should be optimized with a separate table
-            List<String> vehicleIds = telemetryRepository.findAll()
-                    .stream()
-                    .map(ProcessedTelemetryData::getVehicleId)
-                    .distinct()
-                    .collect(Collectors.toList());
-
-            logger.info("Found {} unique vehicles", vehicleIds.size());
-            return ResponseEntity.ok(vehicleIds);
-
-        } catch (Exception e) {
-            logger.error("Error fetching vehicle IDs: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Get telemetry data for a specific vehicle within a time range
-     */
-    @GetMapping("/vehicles/{vehicleId}")
-    public ResponseEntity<List<ProcessedTelemetryData>> getVehicleTelemetry(
-            @PathVariable String vehicleId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant startTime,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant endTime) {
-
-        try {
-            List<ProcessedTelemetryData> data;
-            
-            if (startTime != null && endTime != null) {
-                logger.info("Fetching telemetry for vehicle {} from {} to {}", vehicleId, startTime, endTime);
-                data = telemetryRepository.findByVehicleAndTimeRange(vehicleId, startTime, endTime);
-            } else {
-                logger.info("Fetching latest telemetry for vehicle {}", vehicleId);
-                data = telemetryRepository.findLatestByVehicleId(vehicleId);
-            }
-
-            logger.info("Found {} telemetry records for vehicle {}", data.size(), vehicleId);
-            return ResponseEntity.ok(data);
-
-        } catch (Exception e) {
-            logger.error("Error fetching telemetry for vehicle {}: {}", vehicleId, e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Get the latest telemetry data for a specific vehicle
-     */
-    @GetMapping("/vehicles/{vehicleId}/latest")
-    public ResponseEntity<List<ProcessedTelemetryData>> getLatestVehicleTelemetry(
-            @PathVariable String vehicleId) {
-
-        try {
-            logger.info("Fetching latest telemetry for vehicle {}", vehicleId);
-
-            // Get the most recent records for the vehicle
-            List<ProcessedTelemetryData> data = telemetryRepository.findLatestByVehicleId(vehicleId);
-
-            logger.info("Found {} latest records for vehicle {}", data.size(), vehicleId);
-            return ResponseEntity.ok(data);
-
-        } catch (Exception e) {
-            logger.error("Error fetching latest telemetry for vehicle {}: {}", vehicleId, e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Get latest telemetry data for all vehicles
+     * Get paginated vehicles (ESSENTIAL ENDPOINT)
      */
     @GetMapping("/vehicles/all/latest")
-    public ResponseEntity<List<ProcessedTelemetryData>> getAllVehiclesLatest() {
+    public ResponseEntity<List<ProcessedTelemetryData>> getAllVehiclesLatest(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size) {
         try {
-            logger.info("Fetching latest telemetry for all vehicles");
-
-            // Get all vehicle IDs first
+            // Get all vehicle IDs
             List<String> vehicleIds = telemetryRepository.findAll()
                     .stream()
                     .map(ProcessedTelemetryData::getVehicleId)
                     .distinct()
+                    .sorted()
                     .collect(Collectors.toList());
 
-            // Get latest data for each vehicle
-            List<ProcessedTelemetryData> allLatestData = new ArrayList<>();
-            for (String vehicleId : vehicleIds) {
+            // Apply pagination
+            int startIndex = page * size;
+            int endIndex = Math.min(startIndex + size, vehicleIds.size());
+
+            if (startIndex >= vehicleIds.size()) {
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            List<String> paginatedVehicleIds = vehicleIds.subList(startIndex, endIndex);
+
+            // Get latest data for paginated vehicles
+            List<ProcessedTelemetryData> result = new ArrayList<>();
+            for (String vehicleId : paginatedVehicleIds) {
                 List<ProcessedTelemetryData> latestData = telemetryRepository.findLatestByVehicleId(vehicleId);
                 if (!latestData.isEmpty()) {
-                    allLatestData.add(latestData.get(0)); // Get the most recent record
+                    result.add(latestData.get(0));
                 }
             }
 
-            logger.info("Found latest data for {} vehicles", allLatestData.size());
-            return ResponseEntity.ok(allLatestData);
+            return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            logger.error("Error fetching latest telemetry for all vehicles: {}", e.getMessage());
+            logger.error("Error fetching paginated vehicles: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
     }
 
     /**
-     * Health check endpoint for the processing service
+     * Search vehicles by ID pattern (ESSENTIAL ENDPOINT)
+     */
+    @GetMapping("/vehicles/search")
+    public ResponseEntity<List<ProcessedTelemetryData>> searchVehicles(
+            @RequestParam String vehicleId) {
+        try {
+            // Find vehicles matching pattern
+            List<String> matchingIds = telemetryRepository.findAll()
+                    .stream()
+                    .map(ProcessedTelemetryData::getVehicleId)
+                    .distinct()
+                    .filter(id -> id.toLowerCase().contains(vehicleId.toLowerCase()))
+                    .collect(Collectors.toList());
+
+            // Get latest data for matching vehicles
+            List<ProcessedTelemetryData> result = new ArrayList<>();
+            for (String matchingId : matchingIds) {
+                List<ProcessedTelemetryData> latestData = telemetryRepository.findLatestByVehicleId(matchingId);
+                if (!latestData.isEmpty()) {
+                    result.add(latestData.get(0));
+                }
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            logger.error("Search error: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Get total vehicle count (ESSENTIAL ENDPOINT)
+     */
+    @GetMapping("/vehicles/count")
+    public ResponseEntity<Integer> getTotalVehicleCount() {
+        try {
+            long count = telemetryRepository.findAll()
+                    .stream()
+                    .map(ProcessedTelemetryData::getVehicleId)
+                    .distinct()
+                    .count();
+            return ResponseEntity.ok((int) count);
+        } catch (Exception e) {
+            logger.error("Count error: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Health check (ESSENTIAL)
      */
     @GetMapping("/health")
     public ResponseEntity<String> health() {
-        return ResponseEntity.ok("{\"status\":\"UP\",\"service\":\"data-processing\"}");
+        return ResponseEntity.ok("UP");
     }
 }
