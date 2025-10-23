@@ -1,11 +1,11 @@
-# Vehicle Telemetry System - Kubernetes Namespace
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Kubernetes Namespace
 apiVersion: v1
 kind: Namespace
 metadata:
   name: vehicle-telemetry
   labels:
     name: vehicle-telemetry
-    purpose: iot-platform
+    purpose: fleet-monitoring
     environment: production
   annotations:
-    description: "Vehicle Telemetry System - IoT platform for processing vehicle sensor data"
+    description: "Flow - Real-Time Vehicle Fleet Monitoring & Analytics - IoT platform for processing vehicle sensor data"

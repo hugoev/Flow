@@ -1,4 +1,4 @@
-# Vehicle Telemetry System - Microservices Deployment
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Microservices Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -189,7 +189,7 @@ spec:
         - name: telemetry-streaming
           image: vehicle-telemetry/telemetry-streaming-service:latest
           ports:
-            - containerPort: 8080
+            - containerPort: 8083
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "kubernetes"
@@ -208,13 +208,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /api/telemetry/health
-              port: 8080
+              port: 8083
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /api/telemetry/health
-              port: 8080
+              port: 8083
             initialDelaySeconds: 15
             periodSeconds: 5
 
@@ -231,8 +231,8 @@ spec:
   selector:
     app: telemetry-streaming-service
   ports:
-    - port: 8080
-      targetPort: 8080
+    - port: 8083
+      targetPort: 8083
       protocol: TCP
   type: LoadBalancer
 

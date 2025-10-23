@@ -1,4 +1,4 @@
-# Vehicle Telemetry System - Configuration Maps
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Configuration Maps
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,6 +21,8 @@ data:
 
   # Service URLs
   processing.service.url: "http://data-processing-service:8082"
+  streaming.service.url: "http://telemetry-streaming-service:8083"
+  ingestion.service.url: "http://data-ingestion-service:8081"
 
   # Logging Configuration
   logging.level.com.vehicletelemetry: "INFO"

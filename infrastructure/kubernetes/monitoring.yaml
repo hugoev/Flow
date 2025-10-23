@@ -1,4 +1,4 @@
-# Vehicle Telemetry System - Monitoring and Observability
+# Flow - Real-Time Vehicle Fleet Monitoring & Analytics - Monitoring and Observability
 apiVersion: apps/v1
 kind: Deployment
 metadata:
